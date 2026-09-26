@@ -1,0 +1,57 @@
+name: Build Rasmna APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: false
+
+      # ✅ تثبيت CMake + NDK 28.2
+      - name: Install Android SDK Components
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "cmake;3.22.1" || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;28.2.13676358" || true
+          ls $ANDROID_HOME/cmake/ || true
+          ls $ANDROID_HOME/ndk/ || true
+
+      - name: Clean Gradle caches
+        run: |
+          rm -rf ~/.gradle/caches/
+          rm -rf ~/.gradle/wrapper/
+          rm -rf android/.gradle/
+          rm -rf android/build/
+          rm -rf build/
+          rm -rf .dart_tool/
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: rasmna-apk
+          path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 30
