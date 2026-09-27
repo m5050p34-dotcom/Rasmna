@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/profile_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/points_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/helpers.dart';
@@ -216,7 +217,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                       value: 'points',
                       child: Row(
                         children: [
-                          Icon(Icons.edit, size: 18),
+                          Icon(Icons.stars, size: 18, color: AppTheme.accent),
                           SizedBox(width: 8),
                           Text('تعديل النقاط'),
                         ],
@@ -317,10 +318,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         break;
 
       case 'points':
+        await _showEditPointsDialog(user);
         break;
 
       case 'toggle_admin':
-        // ✅ التقاط messenger قبل أي await
         final messenger = ScaffoldMessenger.of(context);
         final wasAdmin = user.isAdmin;
 
@@ -354,7 +355,6 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         break;
 
       case 'toggle_ban':
-        // ✅ التقاط messenger قبل أي await
         final messenger = ScaffoldMessenger.of(context);
         final wasBanned = user.isBanned;
 
@@ -388,11 +388,415 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   }
 
   // ═══════════════════════════════════════════════
+  // 💰 نافذة تعديل النقاط
+  // ═══════════════════════════════════════════════
+  Future<void> _showEditPointsDialog(ProfileModel user) async {
+    final amountController = TextEditingController();
+    final reasonController = TextEditingController();
+    final messenger = ScaffoldMessenger.of(context);
+
+    String action = 'add';
+    bool isLoading = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setState) {
+          final amount = int.tryParse(amountController.text) ?? 0;
+          int previewPoints;
+
+          switch (action) {
+            case 'add':
+              previewPoints = user.points + amount;
+              break;
+            case 'deduct':
+              previewPoints = (user.points - amount).clamp(0, 999999999);
+              break;
+            case 'set':
+              previewPoints = amount;
+              break;
+            default:
+              previewPoints = user.points;
+          }
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accent.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.stars,
+                    color: AppTheme.accent,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'تعديل النقاط',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                      Text(
+                        user.username,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(dialogContext).disabledColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.account_balance_wallet,
+                            color: AppTheme.accent, size: 20),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'الرصيد الحالي:',
+                          style: TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${user.points}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: AppTheme.accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'الإجراء:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _actionButton(
+                          label: 'إضافة',
+                          icon: Icons.add_circle,
+                          color: AppTheme.success,
+                          value: 'add',
+                          current: action,
+                          onTap: () => setState(() => action = 'add'),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _actionButton(
+                          label: 'خصم',
+                          icon: Icons.remove_circle,
+                          color: AppTheme.error,
+                          value: 'deduct',
+                          current: action,
+                          onTap: () => setState(() => action = 'deduct'),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _actionButton(
+                          label: 'تعيين',
+                          icon: Icons.edit,
+                          color: AppTheme.primary,
+                          value: 'set',
+                          current: action,
+                          onTap: () => setState(() => action = 'set'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'المبلغ',
+                      prefixIcon: Icon(Icons.numbers),
+                      hintText: 'مثال: 500',
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: reasonController,
+                    maxLength: 100,
+                    decoration: const InputDecoration(
+                      labelText: 'السبب (اختياري)',
+                      prefixIcon: Icon(Icons.notes),
+                      hintText: 'مثال: مكافأة تشجيعية',
+                    ),
+                  ),
+                  if (amount > 0) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppTheme.primary.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.trending_up,
+                              color: AppTheme.primary, size: 20),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'الرصيد بعد التعديل:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '$previewPoints',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: AppTheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actionsPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            actions: [
+              TextButton(
+                onPressed:
+                    isLoading ? null : () => Navigator.pop(dialogContext),
+                child: const Text('إلغاء'),
+              ),
+              ElevatedButton.icon(
+                onPressed: isLoading
+                    ? null
+                    : () => _submitPointsEdit(
+                          dialogContext: dialogContext,
+                          user: user,
+                          amount: amount,
+                          action: action,
+                          reason: reasonController.text.trim(),
+                          messenger: messenger,
+                          setLoading: (v) => setState(() => isLoading = v),
+                        ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: action == 'deduct'
+                      ? AppTheme.error
+                      : (action == 'set'
+                          ? AppTheme.primary
+                          : AppTheme.success),
+                ),
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.check, size: 18),
+                label: Text(isLoading ? 'جارٍ...' : 'تأكيد'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════
+  // تنفيذ تعديل النقاط
+  // ═══════════════════════════════════════════════
+  Future<void> _submitPointsEdit({
+    required BuildContext dialogContext,
+    required ProfileModel user,
+    required int amount,
+    required String action,
+    required String reason,
+    required ScaffoldMessengerState messenger,
+    required Function(bool) setLoading,
+  }) async {
+    if (amount <= 0 && action != 'set') {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('أدخل مبلغاً صحيحاً'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+      return;
+    }
+    if (action == 'set' && amount < 0) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('لا يمكن تعيين قيمة سالبة'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      final pointsProvider = context.read<PointsProvider>();
+      final userProvider = context.read<UserProvider>();
+
+      final finalReason =
+          reason.isEmpty ? _defaultReason(action) : reason;
+
+      int newBalance;
+
+      switch (action) {
+        case 'add':
+          newBalance = await pointsProvider.adminGrant(
+            userId: user.id,
+            amount: amount,
+            reason: finalReason,
+          );
+          break;
+        case 'deduct':
+          newBalance = await pointsProvider.adminDeduct(
+            userId: user.id,
+            amount: amount,
+            reason: finalReason,
+          );
+          break;
+        case 'set':
+        default:
+          newBalance = await pointsProvider.setUserPoints(
+            userId: user.id,
+            newValue: amount,
+            reason: finalReason,
+          );
+          break;
+      }
+
+      userProvider.updateUserPoints(user.id, newBalance);
+
+      if (dialogContext.mounted) {
+        Navigator.pop(dialogContext);
+      }
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('✅ تم التحديث • الرصيد الجديد: $newBalance'),
+          backgroundColor: AppTheme.success,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      if (dialogContext.mounted) {
+        Navigator.pop(dialogContext);
+      }
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(Helpers.errorMessage(e)),
+          backgroundColor: AppTheme.error,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
+  String _defaultReason(String action) {
+    switch (action) {
+      case 'add':
+        return 'مكافأة إدارية';
+      case 'deduct':
+        return 'خصم إداري';
+      case 'set':
+        return 'تعيين إداري';
+      default:
+        return 'تعديل إداري';
+    }
+  }
+
+  Widget _actionButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required String value,
+    required String current,
+    required VoidCallback onTap,
+  }) {
+    final isSelected = current == value;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color:
+              isSelected ? color.withValues(alpha: 0.15) : Colors.transparent,
+          border: Border.all(
+            color: isSelected ? color : Colors.grey.withValues(alpha: 0.3),
+            width: isSelected ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? color : Colors.grey,
+              size: 20,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? color : Colors.grey,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════
   // 🔐 نافذة تغيير كلمة المرور
   // ═══════════════════════════════════════════════
   Future<void> _showChangePasswordDialog(ProfileModel user) async {
     final passwordController = TextEditingController();
-    // ✅ التقاط messenger قبل فتح الحوار
     final messenger = ScaffoldMessenger.of(context);
 
     bool obscure = true;
