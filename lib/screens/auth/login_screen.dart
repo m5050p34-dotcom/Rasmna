@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../utils/app_theme.dart';
@@ -45,6 +46,97 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // ═══════════════════════════════════════════════
+  // 🔑 نسيت كلمة المرور → Telegram
+  // ═══════════════════════════════════════════════
+  Future<void> _forgotPassword() async {
+    const telegramUrl = 'https://t.me/Ra16bot';
+    final uri = Uri.parse(telegramUrl);
+
+    try {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!launched && mounted) {
+        // إذا فشل الفتح المباشر، اعرض التنبيه
+        _showTelegramDialog(telegramUrl);
+      }
+    } catch (e) {
+      if (mounted) {
+        _showTelegramDialog(telegramUrl);
+      }
+    }
+  }
+
+  void _showTelegramDialog(String url) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.telegram, color: Color(0xFF229ED9), size: 28),
+            SizedBox(width: 8),
+            Text('نسيت كلمة المرور؟'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'لإعادة تعيين كلمة المرور، يرجى التواصل مع الدعم عبر Telegram:',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF229ED9).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const SelectableText(
+                '@Ra16bot',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF229ED9),
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF229ED9),
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                final uri = Uri.parse(url);
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              } catch (_) {}
+            },
+            icon: const Icon(Icons.open_in_new, size: 18),
+            label: const Text('فتح Telegram'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -58,9 +150,7 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 const SizedBox(height: 40),
 
-                // ═══════════════════════════════════
-                // أيقونة التطبيق
-                // ═══════════════════════════════════
+                // ─── أيقونة ───
                 Center(
                   child: Container(
                     width: 130,
@@ -92,7 +182,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 24),
 
-                // ─── اسم التطبيق ───
                 Text(
                   T.get(context, 'app_name'),
                   textAlign: TextAlign.center,
@@ -105,7 +194,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 48),
 
-                // ─── البريد الإلكتروني ───
+                // ─── البريد ───
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -162,15 +251,28 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
 
+                // ─── نسيت كلمة المرور ───
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: TextButton.icon(
+                    onPressed: _forgotPassword,
+                    icon: const Icon(Icons.help_outline, size: 16),
+                    label: const Text(
+                      'نسيت كلمة المرور؟',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ),
+
                 // ─── رسالة الخطأ ───
                 if (_inlineError != null) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   _errorBanner(_inlineError!),
                 ],
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
-                // ─── زر تسجيل الدخول ───
+                // ─── زر الدخول ───
                 Consumer<AuthProvider>(
                   builder: (context, auth, _) {
                     return SizedBox(

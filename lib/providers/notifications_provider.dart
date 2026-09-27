@@ -14,7 +14,6 @@ class NotificationsProvider extends ChangeNotifier {
   bool _subscribed = false;
   StreamSubscription<List<Map<String, dynamic>>>? _subscription;
 
-  // ✅ تتبع الإشعارات التي شوهدت (لمنع التكرار)
   final Set<String> _seenIds = {};
 
   List<NotificationModel> get notifications => _notifications;
@@ -24,7 +23,7 @@ class NotificationsProvider extends ChangeNotifier {
   bool get hasUnread => _unreadCount > 0;
 
   // ═══════════════════════════════════════════════
-  // تحميل الإشعارات (بدون إظهار إشعارات النظام)
+  // تحميل الإشعارات
   // ═══════════════════════════════════════════════
   Future<void> loadAll({bool silent = false}) async {
     if (!silent) {
@@ -41,7 +40,6 @@ class NotificationsProvider extends ChangeNotifier {
       _unreadCount = results[1] as int;
       _error = null;
 
-      // ✅ سجّل كل الإشعارات الحالية كـ "شوهدت" (لأنها قديمة)
       for (final n in _notifications) {
         _seenIds.add(n.id);
       }
@@ -57,10 +55,13 @@ class NotificationsProvider extends ChangeNotifier {
   }
 
   // ═══════════════════════════════════════════════
-  // 🔔 Realtime + إظهار الإشعارات الجديدة فقط
+  // 🔔 Realtime subscription
   // ═══════════════════════════════════════════════
   void subscribeRealtime() {
-    if (_subscribed) return;
+    if (_subscribed) {
+      debugPrint('🔔 Already subscribed - skipping');
+      return;
+    }
     _subscribed = true;
 
     debugPrint('🔔 Subscribing to notifications realtime...');
@@ -74,7 +75,6 @@ class NotificationsProvider extends ChangeNotifier {
             .map((json) => NotificationModel.fromJson(json))
             .toList();
 
-        // ✅ ابحث عن الجديدة فقط
         final freshOnes = <NotificationModel>[];
         for (final n in newNotifications) {
           if (!_seenIds.contains(n.id)) {
@@ -83,7 +83,6 @@ class NotificationsProvider extends ChangeNotifier {
           }
         }
 
-        // ✅ أظهر إشعارات النظام للجديدة فقط
         for (final n in freshOnes) {
           debugPrint('🆕 New notification: ${n.title}');
           _showSystemNotification(n);
@@ -97,7 +96,19 @@ class NotificationsProvider extends ChangeNotifier {
         debugPrint('❌ Realtime error: $e');
         _subscribed = false;
       },
+      cancelOnError: false,
     );
+  }
+
+  // ═══════════════════════════════════════════════
+  // ✅ إعادة الاتصال (عند العودة للتطبيق)
+  // ═══════════════════════════════════════════════
+  Future<void> reconnect() async {
+    debugPrint('🔌 Reconnecting notifications realtime...');
+    _subscription?.cancel();
+    _subscribed = false;
+    await loadAll(silent: true);
+    subscribeRealtime();
   }
 
   // ═══════════════════════════════════════════════
@@ -108,7 +119,6 @@ class NotificationsProvider extends ChangeNotifier {
       title: n.title,
       body: n.body,
       payload: n.id,
-      // ✅ لا نمرّر ID — سيُنشأ فريد تلقائياً
     );
   }
 

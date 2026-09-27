@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/profile_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/helpers.dart';
-import '../../widgets/edit_points_dialog.dart';
 
 class ManageUsersScreen extends StatefulWidget {
   const ManageUsersScreen({super.key});
@@ -46,7 +46,6 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       ),
       body: Column(
         children: [
-          // ─── البحث ───
           Padding(
             padding: const EdgeInsets.all(12),
             child: TextField(
@@ -64,32 +63,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                       )
                     : null,
               ),
-              onSubmitted: (v) => context.read<UserProvider>().fetchUsers(search: v),
+              onSubmitted: (v) =>
+                  context.read<UserProvider>().fetchUsers(search: v),
             ),
           ),
-
-          // ─── الفلاتر ───
-          Consumer<UserProvider>(
-            builder: (context, provider, _) {
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  children: [
-                    _filterChip('الكل', UserFilter.all, provider),
-                    const SizedBox(width: 8),
-                    _filterChip('الأدمن', UserFilter.admins, provider),
-                    const SizedBox(width: 8),
-                    _filterChip('المحظورون', UserFilter.banned, provider),
-                  ],
-                ),
-              );
-            },
-          ),
-
-          const SizedBox(height: 8),
-
-          // ─── القائمة ───
           Expanded(
             child: Consumer<UserProvider>(
               builder: (context, provider, _) {
@@ -117,17 +94,6 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     );
   }
 
-  Widget _filterChip(String label, UserFilter filter, UserProvider provider) {
-    final isSelected = provider.filter == filter;
-    return FilterChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (_) => provider.fetchUsers(filter: filter),
-      selectedColor: AppTheme.primary.withValues(alpha: 0.2),
-      checkmarkColor: AppTheme.primary,
-    );
-  }
-
   Widget _buildUserCard(ProfileModel user, UserProvider provider) {
     final currentUserId = context.read<AuthProvider>().userId;
     final isSelf = user.id == currentUserId;
@@ -140,7 +106,6 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
           children: [
             Row(
               children: [
-                // ─── الأفاتار ───
                 CircleAvatar(
                   radius: 26,
                   backgroundColor: user.isBanned
@@ -156,8 +121,6 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-
-                // ─── البيانات ───
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -208,8 +171,6 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                     ],
                   ),
                 ),
-
-                // ─── النقاط ───
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
@@ -235,14 +196,22 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                     ],
                   ),
                 ),
-
                 const SizedBox(width: 4),
-
-                // ─── قائمة الإجراءات ───
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert),
                   onSelected: (value) => _onAction(value, user, provider),
                   itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'password',
+                      child: Row(
+                        children: [
+                          Icon(Icons.lock_reset,
+                              size: 18, color: AppTheme.primary),
+                          SizedBox(width: 8),
+                          Text('تغيير كلمة المرور'),
+                        ],
+                      ),
+                    ),
                     const PopupMenuItem(
                       value: 'points',
                       child: Row(
@@ -259,7 +228,9 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                       child: Row(
                         children: [
                           Icon(
-                            user.isAdmin ? Icons.remove_moderator : Icons.admin_panel_settings,
+                            user.isAdmin
+                                ? Icons.remove_moderator
+                                : Icons.admin_panel_settings,
                             size: 18,
                             color: AppTheme.warning,
                           ),
@@ -287,8 +258,6 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 ),
               ],
             ),
-
-            // ─── شارات الحالة ───
             if (user.isAdmin || user.isBanned)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
@@ -334,80 +303,267 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     );
   }
 
+  // ═══════════════════════════════════════════════
+  // معالج الإجراءات
+  // ═══════════════════════════════════════════════
   Future<void> _onAction(
     String action,
     ProfileModel user,
     UserProvider provider,
   ) async {
     switch (action) {
-      case 'points':
-        await showEditPointsDialog(context, user);
+      case 'password':
+        await _showChangePasswordDialog(user);
         break;
+
+      case 'points':
+        break;
+
       case 'toggle_admin':
+        // ✅ التقاط messenger قبل أي await
+        final messenger = ScaffoldMessenger.of(context);
+        final wasAdmin = user.isAdmin;
+
         final confirm = await _confirm(
-          title: user.isAdmin ? 'إلغاء صلاحية الأدمن' : 'ترقية إلى أدمن',
-          message: user.isAdmin
+          title: wasAdmin ? 'إلغاء صلاحية الأدمن' : 'ترقية إلى أدمن',
+          message: wasAdmin
               ? 'هل تريد إلغاء صلاحية الأدمن من ${user.username}؟'
               : 'هل تريد ترقية ${user.username} إلى أدمن؟',
         );
-        if (confirm == true) {
-          try {
-            await provider.setAdmin(user.id, !user.isAdmin);
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(user.isAdmin
-                      ? 'تم إلغاء صلاحية الأدمن'
-                      : 'تم ترقية المستخدم لأدمن'),
-                  backgroundColor: AppTheme.success,
-                ),
-              );
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(Helpers.errorMessage(e)),
-                  backgroundColor: AppTheme.error,
-                ),
-              );
-            }
-          }
+
+        if (confirm != true) return;
+
+        try {
+          await provider.setAdmin(user.id, !wasAdmin);
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                wasAdmin ? 'تم إلغاء صلاحية الأدمن' : 'تم ترقية المستخدم لأدمن',
+              ),
+              backgroundColor: AppTheme.success,
+            ),
+          );
+        } catch (e) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(Helpers.errorMessage(e)),
+              backgroundColor: AppTheme.error,
+            ),
+          );
         }
         break;
+
       case 'toggle_ban':
+        // ✅ التقاط messenger قبل أي await
+        final messenger = ScaffoldMessenger.of(context);
+        final wasBanned = user.isBanned;
+
         final confirm = await _confirm(
-          title: user.isBanned ? 'إلغاء الحظر' : 'حظر المستخدم',
-          message: user.isBanned
+          title: wasBanned ? 'إلغاء الحظر' : 'حظر المستخدم',
+          message: wasBanned
               ? 'هل تريد إلغاء حظر ${user.username}؟'
-              : 'هل تريد حظر ${user.username}؟ لن يستطيع استخدام التطبيق.',
+              : 'هل تريد حظر ${user.username}؟',
         );
-        if (confirm == true) {
-          try {
-            await provider.setBanned(user.id, !user.isBanned);
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(user.isBanned
-                      ? 'تم إلغاء الحظر'
-                      : 'تم حظر المستخدم'),
-                  backgroundColor: AppTheme.success,
-                ),
-              );
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(Helpers.errorMessage(e)),
-                  backgroundColor: AppTheme.error,
-                ),
-              );
-            }
-          }
+
+        if (confirm != true) return;
+
+        try {
+          await provider.setBanned(user.id, !wasBanned);
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(wasBanned ? 'تم إلغاء الحظر' : 'تم حظر المستخدم'),
+              backgroundColor: AppTheme.success,
+            ),
+          );
+        } catch (e) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(Helpers.errorMessage(e)),
+              backgroundColor: AppTheme.error,
+            ),
+          );
         }
         break;
     }
+  }
+
+  // ═══════════════════════════════════════════════
+  // 🔐 نافذة تغيير كلمة المرور
+  // ═══════════════════════════════════════════════
+  Future<void> _showChangePasswordDialog(ProfileModel user) async {
+    final passwordController = TextEditingController();
+    // ✅ التقاط messenger قبل فتح الحوار
+    final messenger = ScaffoldMessenger.of(context);
+
+    bool obscure = true;
+    bool isLoading = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.lock_reset,
+                  color: AppTheme.primary,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'تغيير كلمة المرور',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                    Text(
+                      user.username,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(dialogContext).disabledColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: passwordController,
+                obscureText: obscure,
+                decoration: InputDecoration(
+                  labelText: 'كلمة المرور الجديدة',
+                  prefixIcon: const Icon(Icons.lock_outlined),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      obscure ? Icons.visibility_off : Icons.visibility,
+                    ),
+                    onPressed: () => setState(() => obscure = !obscure),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.warning.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline,
+                        color: AppTheme.warning, size: 18),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '6 أحرف على الأقل',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed:
+                  isLoading ? null : () => Navigator.pop(dialogContext),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton.icon(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      final newPassword = passwordController.text.trim();
+                      if (newPassword.length < 6) {
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('كلمة المرور قصيرة جداً'),
+                            backgroundColor: AppTheme.error,
+                          ),
+                        );
+                        return;
+                      }
+
+                      setState(() => isLoading = true);
+
+                      try {
+                        final response = await Supabase.instance.client
+                            .functions
+                            .invoke('admin-change-password', body: {
+                          'user_id': user.id,
+                          'new_password': newPassword,
+                        });
+
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext);
+                        }
+
+                        if (response.status == 200) {
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                '✅ تم تغيير كلمة مرور ${user.username}',
+                              ),
+                              backgroundColor: AppTheme.success,
+                            ),
+                          );
+                        } else {
+                          final error =
+                              response.data?['error'] ?? 'خطأ غير معروف';
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text('فشل: $error'),
+                              backgroundColor: AppTheme.error,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext);
+                        }
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text('خطأ: $e'),
+                            backgroundColor: AppTheme.error,
+                            duration: const Duration(seconds: 5),
+                          ),
+                        );
+                      }
+                    },
+              icon: isLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.check, size: 18),
+              label: Text(isLoading ? 'جارٍ...' : 'تغيير'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<bool?> _confirm({

@@ -28,17 +28,14 @@ import 'utils/app_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🎬 AdMob + Unity Ads Mediation - لا ننتظره
   AdsService().initialize().catchError((e) {
     debugPrint('⚠️ Ads init failed: $e');
   });
 
-  // 🔔 Local Notifications - لا ننتظره
   LocalNotificationsService.initialize().catchError((e) {
     debugPrint('⚠️ Local Notifications init failed: $e');
   });
 
-  // 🗄️ Supabase - مع timeout
   try {
     await Supabase.initialize(
       url: SupabaseConfig.supabaseUrl,
@@ -64,7 +61,7 @@ class RasmnaApp extends StatefulWidget {
   State<RasmnaApp> createState() => _RasmnaAppState();
 }
 
-class _RasmnaAppState extends State<RasmnaApp> {
+class _RasmnaAppState extends State<RasmnaApp> with WidgetsBindingObserver {
   bool _showPermissions = false;
   bool _checking = true;
   bool _permissionsDone = false;
@@ -72,7 +69,39 @@ class _RasmnaAppState extends State<RasmnaApp> {
   @override
   void initState() {
     super.initState();
+    // ✅ تسجيل مراقب دورة حياة التطبيق
+    WidgetsBinding.instance.addObserver(this);
     _checkFirstLaunch();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // ═══════════════════════════════════════════════
+  // ✅ عند العودة للتطبيق → أعد الاتصال
+  // ═══════════════════════════════════════════════
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    if (state == AppLifecycleState.resumed) {
+      debugPrint('📱 App resumed - reconnecting notifications');
+      // نستخدم context بعد تأخير بسيط
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        try {
+          final notifProvider = context.read<NotificationsProvider>();
+          notifProvider.reconnect();
+        } catch (e) {
+          debugPrint('⚠️ Reconnect error: $e');
+        }
+      });
+    } else if (state == AppLifecycleState.paused) {
+      debugPrint('📱 App paused');
+    }
   }
 
   Future<void> _checkFirstLaunch() async {
@@ -105,7 +134,6 @@ class _RasmnaAppState extends State<RasmnaApp> {
 
   @override
   Widget build(BuildContext context) {
-    // ⏳ في انتظار التحقق
     if (_checking) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -117,7 +145,6 @@ class _RasmnaAppState extends State<RasmnaApp> {
       );
     }
 
-    // 📋 شاشة الأذونات (أول مرة فقط)
     if (_showPermissions && !_permissionsDone) {
       return MaterialApp(
         title: 'رسمنا',
@@ -128,29 +155,21 @@ class _RasmnaAppState extends State<RasmnaApp> {
       );
     }
 
-    // 🏠 التطبيق الرئيسي مع جميع المزودين
     return MultiProvider(
       providers: [
-        // ─── المزودون الأساسيون ───
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => LocaleProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-
-        // ─── مزودو المحتوى ───
         ChangeNotifierProvider(create: (_) => PhotoProvider()),
-        ChangeNotifierProvider(create: (_) => BannerProvider()),
-        ChangeNotifierProvider(create: (_) => CategoriesProvider()),
-        ChangeNotifierProvider(create: (_) => FeaturedProvider()),
-
-        // ─── ⭐ مزودو المستخدم ───
         ChangeNotifierProvider(create: (_) => PointsProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
-        ChangeNotifierProvider(create: (_) => FavoritesProvider()),
-        ChangeNotifierProvider(create: (_) => NotificationsProvider()),
-
-        // ─── مزودو الإدارة ───
         ChangeNotifierProvider(create: (_) => SortProvider()),
         ChangeNotifierProvider(create: (_) => PlatformProvider()),
+        ChangeNotifierProvider(create: (_) => FavoritesProvider()),
+        ChangeNotifierProvider(create: (_) => FeaturedProvider()),
+        ChangeNotifierProvider(create: (_) => BannerProvider()),
+        ChangeNotifierProvider(create: (_) => CategoriesProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationsProvider()),
       ],
       child: Consumer2<ThemeProvider, LocaleProvider>(
         builder: (context, themeProvider, localeProvider, _) {

@@ -8,7 +8,7 @@ class LocalNotificationsService {
       FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
 
-  // ✅ عدّاد فريد لكل إشعار (يمنع التعارض)
+  // ✅ عدّاد فريد لكل إشعار
   static int _notificationCounter = 0;
 
   static const String _channelId = 'rasmna_notifications';
@@ -52,7 +52,11 @@ class LocalNotificationsService {
     debugPrint('✅ LocalNotifications initialized');
   }
 
+  // ═══════════════════════════════════════════════
+  // إنشاء قناة الإشعارات
+  // ═══════════════════════════════════════════════
   static Future<void> _createChannel() async {
+    // ✅ priority غير مدعوم في Channel — يُزال
     const channel = AndroidNotificationChannel(
       _channelId,
       _channelName,
@@ -61,18 +65,23 @@ class LocalNotificationsService {
       playSound: true,
       enableVibration: true,
       showBadge: true,
+      enableLights: true,
+      ledColor: Color(0xFF6C63FF),
     );
 
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
+    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+
+    await androidPlugin?.createNotificationChannel(channel);
+
+    // ✅ طلب الصلاحية على Android 13+
+    await androidPlugin?.requestNotificationsPermission();
 
     debugPrint('✅ Notification channel created');
   }
 
   // ═══════════════════════════════════════════════
-  // 📢 إظهار إشعار (مع ID فريد)
+  // 📢 إظهار إشعار
   // ═══════════════════════════════════════════════
   static Future<void> show({
     required String title,
@@ -82,9 +91,6 @@ class LocalNotificationsService {
   }) async {
     if (!_initialized) await initialize();
 
-    // ✅ ID فريد مضمون:
-    // - إذا مُرّر، نستخدمه
-    // - إذا لا، نستخدم counter + timestamp
     final notificationId = id ??
         (++_notificationCounter +
             DateTime.now().millisecondsSinceEpoch.remainder(1000000));
@@ -96,7 +102,7 @@ class LocalNotificationsService {
       _channelName,
       channelDescription: _channelDesc,
       importance: Importance.max,
-      priority: Priority.high,
+      priority: Priority.high, // ✅ مدعوم هنا فقط
       icon: '@mipmap/ic_launcher',
       playSound: true,
       enableVibration: true,
@@ -108,6 +114,7 @@ class LocalNotificationsService {
       autoCancel: true,
       ongoing: false,
       category: AndroidNotificationCategory.message,
+      ticker: title,
     );
 
     const iosDetails = DarwinNotificationDetails(
