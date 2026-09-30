@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../services/profile_service.dart';
+import '../../services/reports_service.dart';
 import '../../utils/app_theme.dart';
 import 'manage_banners_screen.dart';
 import 'manage_categories_screen.dart';
@@ -12,6 +13,7 @@ import 'manage_users_screen.dart';
 import 'moderate_photos_screen.dart';
 import 'platform_earnings_screen.dart';
 import 'send_notification_screen.dart';
+import 'view_reports_screen.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -22,6 +24,7 @@ class AdminDashboard extends StatefulWidget {
 
 class _AdminDashboardState extends State<AdminDashboard> {
   Map<String, int>? _stats;
+  int _pendingReports = 0;
   bool _loading = true;
 
   @override
@@ -33,9 +36,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Future<void> _loadStats() async {
     try {
       final stats = await ProfileService().getStats();
+      final reports = await ReportsService().getPendingCount();
       if (mounted) {
         setState(() {
           _stats = stats;
+          _pendingReports = reports;
           _loading = false;
         });
       }
@@ -96,6 +101,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     ),
                     const SizedBox(height: 16),
 
+                    // ─── الإحصائيات ───
                     const Text('الإحصائيات',
                         style: TextStyle(
                             fontSize: 18, fontWeight: FontWeight.bold)),
@@ -114,27 +120,39 @@ class _AdminDashboardState extends State<AdminDashboard> {
                         Icons.stars, AppTheme.accent),
                     const SizedBox(height: 24),
 
+                    // ─── الإجراءات ───
                     const Text('الإجراءات',
                         style: TextStyle(
                             fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 12),
 
-                    // ⭐ إرسال إشعار (جديد)
-                    _actionCard(
-                      'إرسال إشعار للمستخدمين',
-                      'إرسال إشعار جماعي أو لمستخدم محدد',
-                      Icons.notifications_active,
+                    // 🚨 البلاغات (مع شارة عدد)
+                    _actionCardWithBadge(
+                      'البلاغات',
+                      'مراجعة بلاغات المستخدمين على الصور',
+                      Icons.flag,
                       AppTheme.error,
-                      () {
-                        Navigator.push(
+                      _pendingReports,
+                      () async {
+                        await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) =>
-                                const SendNotificationScreen(),
+                            builder: (_) => const ViewReportsScreen(),
                           ),
                         );
+                        _loadStats();
                       },
                     ),
+                    const SizedBox(height: 12),
+
+                    _actionCard('إرسال إشعار للمستخدمين',
+                        'إرسال إشعار جماعي أو لمستخدم محدد',
+                        Icons.notifications_active, AppTheme.error, () {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const SendNotificationScreen()));
+                    }),
                     const SizedBox(height: 12),
 
                     _actionCard('إدارة المستخدمين',
@@ -251,6 +269,86 @@ class _AdminDashboardState extends State<AdminDashboard> {
         ),
         title: Text(title,
             style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.chevron_left),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  // ⭐ بطاقة مع شارة عدد
+  Widget _actionCardWithBadge(
+    String title,
+    String subtitle,
+    IconData icon,
+    Color color,
+    int badgeCount,
+    VoidCallback onTap,
+  ) {
+    return Card(
+      child: ListTile(
+        leading: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            CircleAvatar(
+              backgroundColor: color.withValues(alpha: 0.15),
+              child: Icon(icon, color: color),
+            ),
+            if (badgeCount > 0)
+              Positioned(
+                right: -2,
+                top: -2,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  constraints: const BoxConstraints(
+                    minWidth: 18,
+                    minHeight: 18,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.error,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                  child: Text(
+                    badgeCount > 99 ? '99+' : '$badgeCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(title,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            if (badgeCount > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: AppTheme.error.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$badgeCount جديد',
+                  style: const TextStyle(
+                    color: AppTheme.error,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
         subtitle: Text(subtitle),
         trailing: const Icon(Icons.chevron_left),
         onTap: onTap,

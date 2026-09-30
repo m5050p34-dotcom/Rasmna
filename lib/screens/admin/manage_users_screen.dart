@@ -255,6 +255,24 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                         ],
                       ),
                     ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      enabled: !isSelf,
+                      child: const Row(
+                        children: [
+                          Icon(Icons.delete_forever,
+                              size: 18, color: AppTheme.error),
+                          SizedBox(width: 8),
+                          Text(
+                            'حذف الحساب نهائياً',
+                            style: TextStyle(
+                              color: AppTheme.error,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -384,6 +402,163 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
           );
         }
         break;
+
+      case 'delete':
+        await _deleteUser(user, provider);
+        break;
+    }
+  }
+
+  // ═══════════════════════════════════════════════
+  // 🗑️ حذف الحساب نهائياً (مُصلح)
+  // ═══════════════════════════════════════════════
+  Future<void> _deleteUser(
+    ProfileModel user,
+    UserProvider provider,
+  ) async {
+    // ✅ التقاط المراجع قبل أي await
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    // ─── تأكيد أول ───
+    final firstConfirm = await showDialog<bool>(
+      context: navigator.context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded,
+                color: AppTheme.error, size: 28),
+            SizedBox(width: 8),
+            Text(
+              'تحذير خطير!',
+              style: TextStyle(color: AppTheme.error),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'سيتم حذف حساب "${user.username}" نهائياً، ومعها:',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text('• الحساب بالكامل'),
+            const Text('• جميع صوره من Storage'),
+            const Text('• جميع سجلاته وبياناته'),
+            const Text('• جميع بلاغاته وتقييماته'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppTheme.error.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.error_outline,
+                      color: AppTheme.error, size: 18),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'لا يمكن التراجع عن هذا الإجراء!',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.error,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('متابعة'),
+          ),
+        ],
+      ),
+    );
+
+    if (firstConfirm != true) return;
+
+    // ✅ فحص mounted قبل فتح الحوار الثاني
+    if (!mounted) return;
+
+    // ─── حوار ثاني ───
+    final finalConfirm = await showDialog<bool>(
+      context: navigator.context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تأكيد نهائي'),
+        content: Text(
+          'هل أنت متأكد 100% من حذف "${user.username}"؟',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.delete_forever, size: 18),
+            label: const Text('حذف نهائي'),
+          ),
+        ],
+      ),
+    );
+
+    if (finalConfirm != true) return;
+
+    try {
+      final response = await Supabase.instance.client.functions.invoke(
+        'admin-delete-user',
+        body: {'user_id': user.id},
+      );
+
+      if (response.status == 200) {
+        await provider.fetchUsers();
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('✅ تم حذف حساب ${user.username} نهائياً'),
+            backgroundColor: AppTheme.success,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      } else {
+        final error = response.data?['error'] ?? 'خطأ غير معروف';
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('فشل: $error'),
+            backgroundColor: AppTheme.error,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('خطأ: $e'),
+          backgroundColor: AppTheme.error,
+          duration: const Duration(seconds: 4),
+        ),
+      );
     }
   }
 
@@ -641,9 +816,6 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     );
   }
 
-  // ═══════════════════════════════════════════════
-  // تنفيذ تعديل النقاط
-  // ═══════════════════════════════════════════════
   Future<void> _submitPointsEdit({
     required BuildContext dialogContext,
     required ProfileModel user,

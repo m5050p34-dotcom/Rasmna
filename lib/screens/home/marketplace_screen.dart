@@ -32,9 +32,6 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadAll());
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // ✅ دالة التحميل المبسّطة
-  // ═══════════════════════════════════════════════════════════
   Future<void> _loadAll() async {
     final photoProvider = context.read<PhotoProvider>();
     final bannerProvider = context.read<BannerProvider>();
@@ -42,27 +39,18 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     final catProvider = context.read<CategoriesProvider>();
     final notifProvider = context.read<NotificationsProvider>();
 
-    // 1) التصنيفات
     try {
       await catProvider.load();
     } catch (_) {}
-
-    // 2) الصور
     try {
       await photoProvider.fetchPhotos();
     } catch (_) {}
-
-    // 3) الفرز
     try {
       await sortProvider.fetchSortOptions();
     } catch (_) {}
-
-    // 4) البانرات
     try {
       await bannerProvider.loadAll();
     } catch (_) {}
-
-    // 5) 🔔 الإشعارات + Realtime
     try {
       await notifProvider.loadAll();
       notifProvider.subscribeRealtime();
@@ -82,9 +70,13 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
       appBar: AppBar(
         title: Text(T.get(context, 'app_name')),
         actions: [
-          // ═══════════════════════════════════════════
-          // 🔔 الإشعارات (مع Badge)
-          // ═══════════════════════════════════════════
+          // ─── 🔍 البحث ───
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () => _showSearchDialog(context),
+          ),
+
+          // ─── 🔔 الإشعارات ───
           Consumer<NotificationsProvider>(
             builder: (context, provider, _) {
               return Stack(
@@ -115,10 +107,9 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                           color: AppTheme.error,
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: Theme.of(context)
-                                    .appBarTheme
-                                    .backgroundColor ??
-                                Colors.white,
+                            color:
+                                Theme.of(context).appBarTheme.backgroundColor ??
+                                    Colors.white,
                             width: 1.5,
                           ),
                         ),
@@ -140,11 +131,21 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
             },
           ),
 
-          // 🔍 البحث
+          // ─── ➕ رفع صورة (جديد) ───
           IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () => _showSearchDialog(context),
+            icon: const Icon(Icons.add_box_outlined),
+            tooltip: 'رفع صورة',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const UploadScreen(),
+                ),
+              );
+            },
           ),
+
+          const SizedBox(width: 4),
         ],
       ),
       drawer: const MainDrawer(),
@@ -153,14 +154,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            // ═══════════════════════════════════
-            // البانر
-            // ═══════════════════════════════════
             const SliverToBoxAdapter(child: BannerCarousel()),
-
-            // ═══════════════════════════════════
-            // التصنيفات + الفرز
-            // ═══════════════════════════════════
             SliverToBoxAdapter(
               child: SizedBox(
                 height: 50,
@@ -248,10 +242,6 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                 ),
               ),
             ),
-
-            // ═══════════════════════════════════
-            // شبكة الصور
-            // ═══════════════════════════════════
             Consumer<PhotoProvider>(
               builder: (context, provider, _) {
                 if (provider.isLoading && provider.photos.isEmpty) {
@@ -331,35 +321,14 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                 );
               },
             ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 80)),
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
           ],
         ),
       ),
-
-      // 🎬 Banner Ad
       bottomNavigationBar: const BottomBannerAd(),
-
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const UploadScreen()),
-          );
-        },
-        backgroundColor: AppTheme.primary,
-        icon: const Icon(Icons.add_a_photo, color: Colors.white),
-        label: Text(
-          T.get(context, 'upload_photo'),
-          style: const TextStyle(color: Colors.white),
-        ),
-      ),
     );
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // نافذة البحث
-  // ═══════════════════════════════════════════════════════════
   void _showSearchDialog(BuildContext parentContext) {
     showDialog(
       context: parentContext,

@@ -10,6 +10,7 @@ import '../../models/photo_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/favorites_provider.dart';
 import '../../services/photo_service.dart';
+import '../../services/reports_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
@@ -25,9 +26,12 @@ class PhotoDetailsScreen extends StatefulWidget {
 
 class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
   final _photoService = PhotoService();
+  final _reportsService = ReportsService();
+
   bool _isPurchasing = false;
   bool _isDownloading = false;
   bool? _hasPurchased;
+  bool _hasReported = false;
 
   bool get _isOwner =>
       context.read<AuthProvider>().userId == widget.photo.userId;
@@ -42,6 +46,7 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
   void initState() {
     super.initState();
     _checkPurchaseStatus();
+    _checkReportedStatus();
   }
 
   Future<void> _checkPurchaseStatus() async {
@@ -55,6 +60,13 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
     } catch (_) {
       if (mounted) setState(() => _hasPurchased = false);
     }
+  }
+
+  Future<void> _checkReportedStatus() async {
+    try {
+      final reported = await _reportsService.hasReported(widget.photo.id);
+      if (mounted) setState(() => _hasReported = reported);
+    } catch (_) {}
   }
 
   void _openFullscreen() {
@@ -77,6 +89,221 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
         builder: (_) => PhotographerScreen(userId: widget.photo.userId),
       ),
     );
+  }
+
+  // ═══════════════════════════════════════════════
+  // 🚨 نافذة الإبلاغ (مع Radio مخصص بدل Deprecated)
+  // ═══════════════════════════════════════════════
+  Future<void> _showReportDialog() async {
+    final reasons = [
+      'محتوى مخالف',
+      'انتهاك حقوق الملكية',
+      'محتوى غير لائق',
+      'معلومة مضللة',
+      'إعلان مزعج',
+      'أخرى',
+    ];
+
+    String? selectedReason;
+    final detailsController = TextEditingController();
+    bool isSubmitting = false;
+    final messenger = ScaffoldMessenger.of(context);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.error.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.flag,
+                  color: AppTheme.error,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'الإبلاغ عن الصورة',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'اختر سبب الإبلاغ:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // ✅ قائمة أسباب الإبلاغ (Radio مخصص بدون deprecated)
+                ...reasons.map(
+                  (reason) => InkWell(
+                    onTap: isSubmitting
+                        ? null
+                        : () => setDialogState(
+                              () => selectedReason = reason,
+                            ),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        children: [
+                          // دائرة الراديو المخصصة
+                          Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: selectedReason == reason
+                                    ? AppTheme.error
+                                    : Colors.grey.withValues(alpha: 0.5),
+                                width: 2,
+                              ),
+                            ),
+                            child: selectedReason == reason
+                                ? Center(
+                                    child: Container(
+                                      width: 12,
+                                      height: 12,
+                                      decoration: const BoxDecoration(
+                                        color: AppTheme.error,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              reason,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: selectedReason == reason
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: selectedReason == reason
+                                    ? AppTheme.error
+                                    : null,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                TextField(
+                  controller: detailsController,
+                  maxLines: 3,
+                  maxLength: 200,
+                  enabled: !isSubmitting,
+                  decoration: const InputDecoration(
+                    labelText: 'تفاصيل (اختياري)',
+                    hintText: 'اشرح سبب الإبلاغ...',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actionsPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          actions: [
+            TextButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton.icon(
+              onPressed: selectedReason == null || isSubmitting
+                  ? null
+                  : () async {
+                      setDialogState(() => isSubmitting = true);
+                      try {
+                        await _reportsService.submitReport(
+                          photoId: widget.photo.id,
+                          reason: selectedReason!,
+                          details: detailsController.text.trim().isEmpty
+                              ? null
+                              : detailsController.text.trim(),
+                        );
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext, true);
+                        }
+                      } catch (e) {
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext, false);
+                        }
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(Helpers.errorMessage(e)),
+                            backgroundColor: AppTheme.error,
+                          ),
+                        );
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.error,
+              ),
+              icon: isSubmitting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.send, size: 18),
+              label: Text(isSubmitting ? 'جارٍ...' : 'إرسال'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      if (mounted) {
+        setState(() => _hasReported = true);
+      }
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('✅ تم إرسال البلاغ. شكراً لك!'),
+          backgroundColor: AppTheme.success,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Future<void> _purchase() async {
@@ -161,9 +388,6 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
     }
   }
 
-  // ═══════════════════════════════════════════════
-  // 📥 تحميل الصورة (يدعم الشفافية)
-  // ═══════════════════════════════════════════════
   Future<void> _download() async {
     if (!_canDownload) {
       _showSnack('🔒 يجب شراء الصورة أولاً للتحميل', AppTheme.warning);
@@ -239,6 +463,17 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
             expandedHeight: 350,
             pinned: true,
             actions: [
+              // 🚨 زر الإبلاغ
+              if (!_isOwner)
+                IconButton(
+                  icon: Icon(
+                    _hasReported ? Icons.flag : Icons.outlined_flag,
+                    color: _hasReported ? AppTheme.error : Colors.white,
+                  ),
+                  tooltip: _hasReported ? 'تم الإبلاغ' : 'إبلاغ',
+                  onPressed: _hasReported ? null : _showReportDialog,
+                ),
+              // ❤️ زر المفضلة
               IconButton(
                 icon: Icon(
                   isFav ? Icons.favorite : Icons.favorite_border,
@@ -326,7 +561,7 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // ─── المصور (قابل للضغط) + التصنيف ───
+                  // ─── المصور + التصنيف ───
                   Row(
                     children: [
                       InkWell(
@@ -419,6 +654,7 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
 
                   const SizedBox(height: 20),
 
+                  // ─── زر المعاينة ───
                   SizedBox(
                     width: double.infinity,
                     height: 54,
@@ -648,6 +884,9 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
   }
 }
 
+// ═══════════════════════════════════════════════
+// عارض الصورة كاملة الشاشة
+// ═══════════════════════════════════════════════
 class _FullScreenPhotoViewer extends StatelessWidget {
   final String imageUrl;
   final String title;
