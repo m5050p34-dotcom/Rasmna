@@ -168,17 +168,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   // ═══════════════════════════════════════════════
-  // 📧 نافذة تغيير البريد
+  // 📧 نافذة تغيير البريد (بكلمة المرور — فوري)
   // ═══════════════════════════════════════════════
   Future<void> _showChangeEmailDialog() async {
     final profile = context.read<AuthProvider>().profile;
     if (profile == null) return;
 
     final emailController = TextEditingController();
+    final passwordController = TextEditingController();
     final messenger = ScaffoldMessenger.of(context);
+    final auth = context.read<AuthProvider>();
+
+    bool obscure = true;
     bool isLoading = false;
 
-    await showDialog(
+    final success = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => StatefulBuilder(
@@ -186,6 +190,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
+          titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
           title: Row(
             children: [
               Container(
@@ -207,10 +213,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // ─── البريد الحالي ───
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Theme.of(dialogContext)
                         .colorScheme
@@ -236,12 +243,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ],
                   ),
                 ),
+
                 const SizedBox(height: 12),
-                const Center(
-                  child: Icon(Icons.arrow_downward,
-                      color: AppTheme.primary, size: 20),
-                ),
-                const SizedBox(height: 12),
+
+                // ─── البريد الجديد ───
                 TextField(
                   controller: emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -253,7 +258,30 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     hintText: 'newemail@example.com',
                   ),
                 ),
+
                 const SizedBox(height: 12),
+
+                // ─── كلمة المرور ───
+                TextField(
+                  controller: passwordController,
+                  obscureText: obscure,
+                  enabled: !isLoading,
+                  decoration: InputDecoration(
+                    labelText: 'كلمة المرور الحالية',
+                    prefixIcon: const Icon(Icons.lock_outlined),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscure ? Icons.visibility_off : Icons.visibility,
+                      ),
+                      onPressed: () =>
+                          setDialogState(() => obscure = !obscure),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // ─── تنبيه ───
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
@@ -270,8 +298,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'سيُرسل رابط تأكيد للبريد الجديد.\n'
-                          'لن يتغير البريد حتى تضغط الرابط.',
+                          'أدخل كلمة المرور لتأكيد الهوية\n'
+                          'سيتم التغيير فوراً',
                           style: TextStyle(fontSize: 12),
                         ),
                       ),
@@ -281,10 +309,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ],
             ),
           ),
+          actionsPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           actions: [
             TextButton(
               onPressed:
-                  isLoading ? null : () => Navigator.pop(dialogContext),
+                  isLoading ? null : () => Navigator.pop(dialogContext, false),
               child: const Text('إلغاء'),
             ),
             ElevatedButton.icon(
@@ -292,11 +322,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ? null
                   : () async {
                       final newEmail = emailController.text.trim();
+                      final password = passwordController.text;
 
+                      // ─── التحقق ───
                       if (newEmail.isEmpty || !newEmail.contains('@')) {
                         messenger.showSnackBar(
                           const SnackBar(
                             content: Text('أدخل بريداً صحيحاً'),
+                            backgroundColor: AppTheme.error,
+                          ),
+                        );
+                        return;
+                      }
+
+                      if (password.isEmpty) {
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('أدخل كلمة المرور'),
                             backgroundColor: AppTheme.error,
                           ),
                         );
@@ -317,23 +359,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       setDialogState(() => isLoading = true);
 
                       try {
-                        await _service.changeMyEmail(newEmail);
-                        if (dialogContext.mounted) {
-                          Navigator.pop(dialogContext);
-                        }
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              '✅ تم إرسال رابط تأكيد إلى $newEmail\n'
-                              'افتح بريدك واضغط الرابط لتفعيل التغيير.',
-                            ),
-                            backgroundColor: AppTheme.success,
-                            duration: const Duration(seconds: 6),
-                          ),
+                        await _service.changeMyEmailWithPassword(
+                          currentEmail: profile.email,
+                          password: password,
+                          newEmail: newEmail,
                         );
+
+                        // تحديث الحالة
+                        await auth.refreshProfile();
+
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext, true);
+                        }
                       } catch (e) {
                         if (dialogContext.mounted) {
-                          Navigator.pop(dialogContext);
+                          Navigator.pop(dialogContext, false);
                         }
                         messenger.showSnackBar(
                           SnackBar(
@@ -353,13 +393,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         color: Colors.white,
                       ),
                     )
-                  : const Icon(Icons.send, size: 18),
-              label: Text(isLoading ? 'جارٍ...' : 'إرسال الرابط'),
+                  : const Icon(Icons.check, size: 18),
+              label: Text(isLoading ? 'جارٍ...' : 'تغيير البريد'),
             ),
           ],
         ),
       ),
     );
+
+    if (success == true) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('✅ تم تغيير البريد الإلكتروني بنجاح'),
+          backgroundColor: AppTheme.success,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   Future<void> _save() async {
@@ -646,7 +696,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               const SizedBox(height: 24),
 
               // ═══════════════════════════════════
-              // 📧 البريد الإلكتروني (قابل للتغيير)
+              // 📧 البريد الإلكتروني
               // ═══════════════════════════════════
               Card(
                 child: ListTile(

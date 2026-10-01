@@ -11,9 +11,6 @@ class ProfileService {
   final PointsService _pointsService = PointsService();
   final _uuid = const Uuid();
 
-  // ═══════════════════════════════════════════════
-  // جلب ملف شخصي
-  // ═══════════════════════════════════════════════
   Future<ProfileModel> getProfile(String userId) async {
     final response = await _supabase
         .from('profiles')
@@ -23,9 +20,6 @@ class ProfileService {
     return ProfileModel.fromJson(response);
   }
 
-  // ═══════════════════════════════════════════════
-  // جلب كل الملفات (للأدمن)
-  // ═══════════════════════════════════════════════
   Future<List<ProfileModel>> getAllProfiles({
     String? searchQuery,
     bool onlyAdmins = false,
@@ -45,9 +39,6 @@ class ProfileService {
         .toList();
   }
 
-  // ═══════════════════════════════════════════════
-  // تحديث ملف شخصي
-  // ═══════════════════════════════════════════════
   Future<void> updateProfile(
     String userId,
     Map<String, dynamic> updates,
@@ -55,9 +46,6 @@ class ProfileService {
     await _supabase.from('profiles').update(updates).eq('id', userId);
   }
 
-  // ═══════════════════════════════════════════════
-  // 🖼️ رفع صورة رمزية
-  // ═══════════════════════════════════════════════
   Future<String> uploadAvatarFile(String userId, File file) async {
     final fileName = '$userId/avatar_${_uuid.v4()}.jpg';
     await _supabase.storage.from('avatars').upload(
@@ -68,15 +56,11 @@ class ProfileService {
     return _supabase.storage.from('avatars').getPublicUrl(fileName);
   }
 
-  // ═══════════════════════════════════════════════
-  // 🖼️ تغيير الصورة الرمزية (خصم 50 نقطة)
-  // ═══════════════════════════════════════════════
   Future<AvatarChangeResult> changeAvatar({
     required String userId,
     required File file,
   }) async {
     final avatarUrl = await uploadAvatarFile(userId, file);
-
     final response = await _supabase.rpc(
       'change_avatar',
       params: {
@@ -92,9 +76,6 @@ class ProfileService {
     );
   }
 
-  // ═══════════════════════════════════════════════
-  // 💰 تغيير الاسم (خصم 50 نقطة)
-  // ═══════════════════════════════════════════════
   Future<UsernameChangeResult> changeUsername({
     required String userId,
     required String newUsername,
@@ -127,9 +108,6 @@ class ProfileService {
     }
   }
 
-  // ═══════════════════════════════════════════════
-  // 🎁 المكافأة اليومية
-  // ═══════════════════════════════════════════════
   Future<DailyRewardResult> claimDailyReward(String userId) async {
     final profile = await getProfile(userId);
     final now = DateTime.now();
@@ -196,27 +174,18 @@ class ProfileService {
     );
   }
 
-  // ═══════════════════════════════════════════════
-  // 🚫 حظر / رفع حظر
-  // ═══════════════════════════════════════════════
   Future<void> setBanned(String userId, bool banned) async {
     await _supabase
         .from('profiles')
         .update({'is_banned': banned}).eq('id', userId);
   }
 
-  // ═══════════════════════════════════════════════
-  // 👑 ترقية / تنزيل أدمن
-  // ═══════════════════════════════════════════════
   Future<void> setAdmin(String userId, bool isAdmin) async {
     await _supabase
         .from('profiles')
         .update({'is_admin': isAdmin}).eq('id', userId);
   }
 
-  // ═══════════════════════════════════════════════
-  // 📊 إحصائيات عامة
-  // ═══════════════════════════════════════════════
   Future<Map<String, int>> getStats() async {
     final profiles = await _supabase.from('profiles').select('id, points');
     final photos = await _supabase.from('photos').select('id');
@@ -232,9 +201,6 @@ class ProfileService {
     };
   }
 
-  // ═══════════════════════════════════════════════
-  // 👤 صور مصور معين
-  // ═══════════════════════════════════════════════
   Future<List<PhotoModel>> getPhotographerPhotos(String userId) async {
     final response = await _supabase
         .from('photos')
@@ -250,16 +216,54 @@ class ProfileService {
   }
 
   // ═══════════════════════════════════════════════
-  // 📧 تغيير البريد (للمستخدم نفسه - مع تأكيد)
+  // 📧 تغيير البريد (مع كلمة المرور — فوري)
   // ═══════════════════════════════════════════════
-  Future<void> changeMyEmail(String newEmail) async {
-    await _supabase.auth.updateUser(
-      UserAttributes(email: newEmail.trim()),
-    );
+  Future<void> changeMyEmailWithPassword({
+    required String currentEmail,
+    required String password,
+    required String newEmail,
+  }) async {
+    // 1) التحقق من كلمة المرور بمحاولة تسجيل دخول
+    try {
+      await _supabase.auth.signInWithPassword(
+        email: currentEmail,
+        password: password,
+      );
+    } on AuthException catch (e) {
+      if (e.message.toLowerCase().contains('invalid')) {
+        throw Exception('كلمة المرور غير صحيحة');
+      }
+      rethrow;
+    }
+
+    // 2) تحديث البريد (فوري بدون تأكيد إذا كان معطلاً)
+    try {
+      await _supabase.auth.updateUser(
+        UserAttributes(email: newEmail.trim()),
+      );
+    } on AuthException catch (e) {
+      final msg = e.message.toLowerCase();
+      if (msg.contains('already') || msg.contains('registered')) {
+        throw Exception('هذا البريد مسجل بالفعل');
+      }
+      if (msg.contains('invalid') || msg.contains('email')) {
+        throw Exception('صيغة البريد غير صحيحة');
+      }
+      rethrow;
+    }
+
+    // 3) مزامنة البريد في جدول profiles يدوياً كاحتياط
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId != null) {
+      await _supabase
+          .from('profiles')
+          .update({'email': newEmail.trim()})
+          .eq('id', userId);
+    }
   }
 
   // ═══════════════════════════════════════════════
-  // 📧 تغيير البريد (للأدمن - بدون تأكيد)
+  // 📧 تغيير البريد (للأدمن — فوري)
   // ═══════════════════════════════════════════════
   Future<void> adminChangeEmail({
     required String userId,
