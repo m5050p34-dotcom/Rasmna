@@ -26,17 +26,25 @@ jobs:
           java-version: '17'
 
       # ─────────────────────────────────────────
-      # 3️⃣ إعداد Flutter (مع cache للسرعة)
+      # 3️⃣ إعداد Flutter (أحدث إصدار Stable)
+      #     ⚠️ لا نحدد إصداراً → يحصل على Dart 3.10+
       # ─────────────────────────────────────────
-      - name: Setup Flutter
+      - name: Setup Flutter (latest stable)
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          flutter-version: '3.24.5'
           cache: true
 
       # ─────────────────────────────────────────
-      # 4️⃣ تثبيت CMake + NDK 28.2
+      # 4️⃣ عرض الإصدارات (للتشخيص)
+      # ─────────────────────────────────────────
+      - name: Show Flutter & Dart versions
+        run: |
+          flutter --version
+          dart --version
+
+      # ─────────────────────────────────────────
+      # 5️⃣ تثبيت CMake + NDK 28.2
       # ─────────────────────────────────────────
       - name: Install Android SDK Components
         run: |
@@ -47,7 +55,7 @@ jobs:
           ls $ANDROID_HOME/ndk/ || true
 
       # ─────────────────────────────────────────
-      # 5️⃣ فك تشفير الـ Keystore من GitHub Secrets
+      # 6️⃣ فك تشفير الـ Keystore
       # ─────────────────────────────────────────
       - name: Decode Keystore
         run: |
@@ -56,7 +64,7 @@ jobs:
           ls -lh android/app/rasmna-upload.jks
 
       # ─────────────────────────────────────────
-      # 6️⃣ إنشاء key.properties لربط التوقيع
+      # 7️⃣ إنشاء key.properties
       # ─────────────────────────────────────────
       - name: Create key.properties
         run: |
@@ -69,7 +77,7 @@ jobs:
           echo "✅ key.properties created"
 
       # ─────────────────────────────────────────
-      # 7️⃣ تنظيف الـ caches القديمة
+      # 8️⃣ تنظيف الـ caches القديمة
       # ─────────────────────────────────────────
       - name: Clean old caches
         run: |
@@ -81,19 +89,19 @@ jobs:
           rm -rf .dart_tool/
 
       # ─────────────────────────────────────────
-      # 8️⃣ جلب اعتماديات Flutter
+      # 9️⃣ جلب اعتماديات Flutter
       # ─────────────────────────────────────────
       - name: Get dependencies
         run: flutter pub get
 
       # ─────────────────────────────────────────
-      # 9️⃣ بناء APK موقّع (تطبيق واحد لكل الأجهزة)
+      # 🔟 بناء APK موقّع (تطبيق واحد عالمي)
       # ─────────────────────────────────────────
       - name: Build Signed Universal APK
-        run: flutter build apk --release --no-shrink
+        run: flutter build apk --release
 
       # ─────────────────────────────────────────
-      # 🔟 التحقق من وجود APK
+      # 1️⃣1️⃣ التحقق من وجود APK
       # ─────────────────────────────────────────
       - name: Verify APK exists
         run: |
@@ -101,7 +109,7 @@ jobs:
           test -f build/app/outputs/flutter-apk/app-release.apk && echo "✅ APK built successfully"
 
       # ─────────────────────────────────────────
-      # 1️⃣1️⃣ رفع الـ APK كمُخرَج
+      # 1️⃣2️⃣ رفع APK
       # ─────────────────────────────────────────
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
