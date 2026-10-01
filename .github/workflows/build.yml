@@ -10,22 +10,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # ─────────────────────────────────────────
+      # 1️⃣ جلب الكود
+      # ─────────────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # ─────────────────────────────────────────
+      # 2️⃣ إعداد Java 17 (Zulu)
+      # ─────────────────────────────────────────
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
+      # ─────────────────────────────────────────
+      # 3️⃣ إعداد Flutter (مع cache للسرعة)
+      # ─────────────────────────────────────────
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          cache: false
+          flutter-version: '3.24.5'
+          cache: true
 
-      # ✅ تثبيت CMake + NDK 28.2
+      # ─────────────────────────────────────────
+      # 4️⃣ تثبيت CMake + NDK 28.2
+      # ─────────────────────────────────────────
       - name: Install Android SDK Components
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
@@ -34,7 +46,32 @@ jobs:
           ls $ANDROID_HOME/cmake/ || true
           ls $ANDROID_HOME/ndk/ || true
 
-      - name: Clean Gradle caches
+      # ─────────────────────────────────────────
+      # 5️⃣ فك تشفير الـ Keystore من GitHub Secrets
+      # ─────────────────────────────────────────
+      - name: Decode Keystore
+        run: |
+          mkdir -p android/app
+          echo "${{ secrets.KEYSTORE_FILE }}" | base64 --decode > android/app/rasmna-upload.jks
+          ls -lh android/app/rasmna-upload.jks
+
+      # ─────────────────────────────────────────
+      # 6️⃣ إنشاء key.properties لربط التوقيع
+      # ─────────────────────────────────────────
+      - name: Create key.properties
+        run: |
+          cat > android/key.properties << EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=rasmna-upload.jks
+          EOF
+          echo "✅ key.properties created"
+
+      # ─────────────────────────────────────────
+      # 7️⃣ تنظيف الـ caches القديمة
+      # ─────────────────────────────────────────
+      - name: Clean old caches
         run: |
           rm -rf ~/.gradle/caches/
           rm -rf ~/.gradle/wrapper/
@@ -43,15 +80,32 @@ jobs:
           rm -rf build/
           rm -rf .dart_tool/
 
+      # ─────────────────────────────────────────
+      # 8️⃣ جلب اعتماديات Flutter
+      # ─────────────────────────────────────────
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Build APK
-        run: flutter build apk --release
+      # ─────────────────────────────────────────
+      # 9️⃣ بناء APK موقّع (تطبيق واحد لكل الأجهزة)
+      # ─────────────────────────────────────────
+      - name: Build Signed Universal APK
+        run: flutter build apk --release --no-shrink
 
-      - name: Upload APK
+      # ─────────────────────────────────────────
+      # 🔟 التحقق من وجود APK
+      # ─────────────────────────────────────────
+      - name: Verify APK exists
+        run: |
+          ls -lh build/app/outputs/flutter-apk/
+          test -f build/app/outputs/flutter-apk/app-release.apk && echo "✅ APK built successfully"
+
+      # ─────────────────────────────────────────
+      # 1️⃣1️⃣ رفع الـ APK كمُخرَج
+      # ─────────────────────────────────────────
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rasmna-apk
-          path: build/app/outputs/flutter-apk/*.apk
+          name: rasmna-universal-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
