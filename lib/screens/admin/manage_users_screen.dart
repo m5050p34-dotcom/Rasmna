@@ -6,6 +6,7 @@ import '../../models/profile_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/points_provider.dart';
 import '../../providers/user_provider.dart';
+import '../../services/profile_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/helpers.dart';
 
@@ -47,6 +48,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       ),
       body: Column(
         children: [
+          // ─── البحث ───
           Padding(
             padding: const EdgeInsets.all(12),
             child: TextField(
@@ -68,6 +70,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   context.read<UserProvider>().fetchUsers(search: v),
             ),
           ),
+
+          // ─── القائمة ───
           Expanded(
             child: Consumer<UserProvider>(
               builder: (context, provider, _) {
@@ -95,6 +99,9 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     );
   }
 
+  // ═══════════════════════════════════════════════
+  // بطاقة المستخدم
+  // ═══════════════════════════════════════════════
   Widget _buildUserCard(ProfileModel user, UserProvider provider) {
     final currentUserId = context.read<AuthProvider>().userId;
     final isSelf = user.id == currentUserId;
@@ -107,6 +114,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
           children: [
             Row(
               children: [
+                // ─── الأفاتار ───
                 CircleAvatar(
                   radius: 26,
                   backgroundColor: user.isBanned
@@ -122,6 +130,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
+
+                // ─── البيانات ───
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -172,6 +182,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                     ],
                   ),
                 ),
+
+                // ─── النقاط ───
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
@@ -198,10 +210,27 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   ),
                 ),
                 const SizedBox(width: 4),
+
+                // ═══════════════════════════════════
+                // قائمة الإجراءات
+                // ═══════════════════════════════════
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert),
                   onSelected: (value) => _onAction(value, user, provider),
                   itemBuilder: (context) => [
+                    // 📧 تغيير البريد
+                    const PopupMenuItem(
+                      value: 'email',
+                      child: Row(
+                        children: [
+                          Icon(Icons.email,
+                              size: 18, color: AppTheme.primary),
+                          SizedBox(width: 8),
+                          Text('تغيير البريد'),
+                        ],
+                      ),
+                    ),
+                    // 🔐 تغيير كلمة المرور
                     const PopupMenuItem(
                       value: 'password',
                       child: Row(
@@ -213,6 +242,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                         ],
                       ),
                     ),
+                    // ⭐ تعديل النقاط
                     const PopupMenuItem(
                       value: 'points',
                       child: Row(
@@ -223,6 +253,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                         ],
                       ),
                     ),
+                    // 👑 ترقية/إلغاء أدمن
                     PopupMenuItem(
                       value: 'toggle_admin',
                       enabled: !isSelf,
@@ -240,6 +271,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                         ],
                       ),
                     ),
+                    // 🚫 حظر/إلغاء حظر
                     PopupMenuItem(
                       value: 'toggle_ban',
                       enabled: !isSelf,
@@ -255,6 +287,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                         ],
                       ),
                     ),
+                    // 🗑️ حذف الحساب
                     PopupMenuItem(
                       value: 'delete',
                       enabled: !isSelf,
@@ -277,6 +310,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 ),
               ],
             ),
+
+            // ─── الشارات ───
             if (user.isAdmin || user.isBanned)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
@@ -331,6 +366,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     UserProvider provider,
   ) async {
     switch (action) {
+      case 'email':
+        await _showChangeEmailDialog(user, provider);
+        break;
+
       case 'password':
         await _showChangePasswordDialog(user);
         break;
@@ -410,225 +449,137 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   }
 
   // ═══════════════════════════════════════════════
-  // 🗑️ حذف الحساب نهائياً (مُصلح)
+  // 📧 نافذة تغيير البريد (للأدمن)
   // ═══════════════════════════════════════════════
-  Future<void> _deleteUser(
+  Future<void> _showChangeEmailDialog(
     ProfileModel user,
     UserProvider provider,
   ) async {
-    // ✅ التقاط المراجع قبل أي await
+    final emailController = TextEditingController();
     final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
-
-    // ─── تأكيد أول ───
-    final firstConfirm = await showDialog<bool>(
-      context: navigator.context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.warning_amber_rounded,
-                color: AppTheme.error, size: 28),
-            SizedBox(width: 8),
-            Text(
-              'تحذير خطير!',
-              style: TextStyle(color: AppTheme.error),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'سيتم حذف حساب "${user.username}" نهائياً، ومعها:',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Text('• الحساب بالكامل'),
-            const Text('• جميع صوره من Storage'),
-            const Text('• جميع سجلاته وبياناته'),
-            const Text('• جميع بلاغاته وتقييماته'),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppTheme.error.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.error_outline,
-                      color: AppTheme.error, size: 18),
-                  SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'لا يمكن التراجع عن هذا الإجراء!',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.error,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.error,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('متابعة'),
-          ),
-        ],
-      ),
-    );
-
-    if (firstConfirm != true) return;
-
-    // ✅ فحص mounted قبل فتح الحوار الثاني
-    if (!mounted) return;
-
-    // ─── حوار ثاني ───
-    final finalConfirm = await showDialog<bool>(
-      context: navigator.context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('تأكيد نهائي'),
-        content: Text(
-          'هل أنت متأكد 100% من حذف "${user.username}"؟',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.error,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            icon: const Icon(Icons.delete_forever, size: 18),
-            label: const Text('حذف نهائي'),
-          ),
-        ],
-      ),
-    );
-
-    if (finalConfirm != true) return;
-
-    try {
-      final response = await Supabase.instance.client.functions.invoke(
-        'admin-delete-user',
-        body: {'user_id': user.id},
-      );
-
-      if (response.status == 200) {
-        await provider.fetchUsers();
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('✅ تم حذف حساب ${user.username} نهائياً'),
-            backgroundColor: AppTheme.success,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      } else {
-        final error = response.data?['error'] ?? 'خطأ غير معروف';
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('فشل: $error'),
-            backgroundColor: AppTheme.error,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('خطأ: $e'),
-          backgroundColor: AppTheme.error,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    }
-  }
-
-  // ═══════════════════════════════════════════════
-  // 💰 نافذة تعديل النقاط
-  // ═══════════════════════════════════════════════
-  Future<void> _showEditPointsDialog(ProfileModel user) async {
-    final amountController = TextEditingController();
-    final reasonController = TextEditingController();
-    final messenger = ScaffoldMessenger.of(context);
-
-    String action = 'add';
+    final service = ProfileService();
     bool isLoading = false;
 
     await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setState) {
-          final amount = int.tryParse(amountController.text) ?? 0;
-          int previewPoints;
-
-          switch (action) {
-            case 'add':
-              previewPoints = user.points + amount;
-              break;
-            case 'deduct':
-              previewPoints = (user.points - amount).clamp(0, 999999999);
-              break;
-            case 'set':
-              previewPoints = amount;
-              break;
-            default:
-              previewPoints = user.points;
-          }
-
-          return AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-            title: Row(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.email,
+                  color: AppTheme.primary,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'تغيير البريد الإلكتروني',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                    Text(
+                      user.username,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(dialogContext).disabledColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // ─── البريد الحالي ───
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppTheme.accent.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
+                    color: Theme.of(dialogContext)
+                        .colorScheme
+                        .surfaceContainerHighest
+                        .withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(
-                    Icons.stars,
-                    color: AppTheme.accent,
-                    size: 22,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.email_outlined, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          user.email,
+                          style: const TextStyle(
+                            decoration: TextDecoration.lineThrough,
+                            color: Colors.grey,
+                            fontSize: 13,
+                          ),
+                          textDirection: TextDirection.ltr,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+
+                const SizedBox(height: 8),
+                const Center(
+                  child: Icon(Icons.arrow_downward,
+                      color: AppTheme.primary, size: 20),
+                ),
+                const SizedBox(height: 8),
+
+                // ─── البريد الجديد ───
+                TextField(
+                  controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  textDirection: TextDirection.ltr,
+                  enabled: !isLoading,
+                  decoration: const InputDecoration(
+                    labelText: 'البريد الجديد',
+                    prefixIcon: Icon(Icons.email),
+                    hintText: 'newemail@example.com',
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // ─── تنبيه ───
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.warning.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppTheme.warning.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: const Row(
                     children: [
-                      const Text(
-                        'تعديل النقاط',
-                        style: TextStyle(fontSize: 16),
-                      ),
-                      Text(
-                        user.username,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(dialogContext).disabledColor,
+                      Icon(Icons.info_outline,
+                          color: AppTheme.warning, size: 18),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'كأدمن، يتم التغيير فوراً دون تأكيد البريد',
+                          style: TextStyle(fontSize: 12),
                         ),
                       ),
                     ],
@@ -636,327 +587,91 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 ),
               ],
             ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accent.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.account_balance_wallet,
-                            color: AppTheme.accent, size: 20),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'الرصيد الحالي:',
-                          style: TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                        const Spacer(),
-                        Text(
-                          '${user.points}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: AppTheme.accent,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'الإجراء:',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _actionButton(
-                          label: 'إضافة',
-                          icon: Icons.add_circle,
-                          color: AppTheme.success,
-                          value: 'add',
-                          current: action,
-                          onTap: () => setState(() => action = 'add'),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: _actionButton(
-                          label: 'خصم',
-                          icon: Icons.remove_circle,
-                          color: AppTheme.error,
-                          value: 'deduct',
-                          current: action,
-                          onTap: () => setState(() => action = 'deduct'),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: _actionButton(
-                          label: 'تعيين',
-                          icon: Icons.edit,
-                          color: AppTheme.primary,
-                          value: 'set',
-                          current: action,
-                          onTap: () => setState(() => action = 'set'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: amountController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'المبلغ',
-                      prefixIcon: Icon(Icons.numbers),
-                      hintText: 'مثال: 500',
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: reasonController,
-                    maxLength: 100,
-                    decoration: const InputDecoration(
-                      labelText: 'السبب (اختياري)',
-                      prefixIcon: Icon(Icons.notes),
-                      hintText: 'مثال: مكافأة تشجيعية',
-                    ),
-                  ),
-                  if (amount > 0) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: AppTheme.primary.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.trending_up,
-                              color: AppTheme.primary, size: 20),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'الرصيد بعد التعديل:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            '$previewPoints',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                              color: AppTheme.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            actionsPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            actions: [
-              TextButton(
-                onPressed:
-                    isLoading ? null : () => Navigator.pop(dialogContext),
-                child: const Text('إلغاء'),
-              ),
-              ElevatedButton.icon(
-                onPressed: isLoading
-                    ? null
-                    : () => _submitPointsEdit(
-                          dialogContext: dialogContext,
-                          user: user,
-                          amount: amount,
-                          action: action,
-                          reason: reasonController.text.trim(),
-                          messenger: messenger,
-                          setLoading: (v) => setState(() => isLoading = v),
-                        ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: action == 'deduct'
-                      ? AppTheme.error
-                      : (action == 'set'
-                          ? AppTheme.primary
-                          : AppTheme.success),
-                ),
-                icon: isLoading
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.check, size: 18),
-                label: Text(isLoading ? 'جارٍ...' : 'تأكيد'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Future<void> _submitPointsEdit({
-    required BuildContext dialogContext,
-    required ProfileModel user,
-    required int amount,
-    required String action,
-    required String reason,
-    required ScaffoldMessengerState messenger,
-    required Function(bool) setLoading,
-  }) async {
-    if (amount <= 0 && action != 'set') {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('أدخل مبلغاً صحيحاً'),
-          backgroundColor: AppTheme.error,
-        ),
-      );
-      return;
-    }
-    if (action == 'set' && amount < 0) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('لا يمكن تعيين قيمة سالبة'),
-          backgroundColor: AppTheme.error,
-        ),
-      );
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      final pointsProvider = context.read<PointsProvider>();
-      final userProvider = context.read<UserProvider>();
-
-      final finalReason =
-          reason.isEmpty ? _defaultReason(action) : reason;
-
-      int newBalance;
-
-      switch (action) {
-        case 'add':
-          newBalance = await pointsProvider.adminGrant(
-            userId: user.id,
-            amount: amount,
-            reason: finalReason,
-          );
-          break;
-        case 'deduct':
-          newBalance = await pointsProvider.adminDeduct(
-            userId: user.id,
-            amount: amount,
-            reason: finalReason,
-          );
-          break;
-        case 'set':
-        default:
-          newBalance = await pointsProvider.setUserPoints(
-            userId: user.id,
-            newValue: amount,
-            reason: finalReason,
-          );
-          break;
-      }
-
-      userProvider.updateUserPoints(user.id, newBalance);
-
-      if (dialogContext.mounted) {
-        Navigator.pop(dialogContext);
-      }
-
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('✅ تم التحديث • الرصيد الجديد: $newBalance'),
-          backgroundColor: AppTheme.success,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    } catch (e) {
-      if (dialogContext.mounted) {
-        Navigator.pop(dialogContext);
-      }
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(Helpers.errorMessage(e)),
-          backgroundColor: AppTheme.error,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    }
-  }
-
-  String _defaultReason(String action) {
-    switch (action) {
-      case 'add':
-        return 'مكافأة إدارية';
-      case 'deduct':
-        return 'خصم إداري';
-      case 'set':
-        return 'تعيين إداري';
-      default:
-        return 'تعديل إداري';
-    }
-  }
-
-  Widget _actionButton({
-    required String label,
-    required IconData icon,
-    required Color color,
-    required String value,
-    required String current,
-    required VoidCallback onTap,
-  }) {
-    final isSelected = current == value;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color:
-              isSelected ? color.withValues(alpha: 0.15) : Colors.transparent,
-          border: Border.all(
-            color: isSelected ? color : Colors.grey.withValues(alpha: 0.3),
-            width: isSelected ? 2 : 1,
           ),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? color : Colors.grey,
-              size: 20,
+          actionsPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          actions: [
+            TextButton(
+              onPressed:
+                  isLoading ? null : () => Navigator.pop(dialogContext),
+              child: const Text('إلغاء'),
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? color : Colors.grey,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                fontSize: 12,
-              ),
+            ElevatedButton.icon(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      final newEmail = emailController.text.trim();
+
+                      // ─── التحقق ───
+                      if (newEmail.isEmpty || !newEmail.contains('@')) {
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('أدخل بريداً صحيحاً'),
+                            backgroundColor: AppTheme.error,
+                          ),
+                        );
+                        return;
+                      }
+
+                      if (newEmail.toLowerCase() ==
+                          user.email.toLowerCase()) {
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('البريد نفسه — لم يتغير'),
+                            backgroundColor: AppTheme.warning,
+                          ),
+                        );
+                        return;
+                      }
+
+                      // ─── تنفيذ ───
+                      setDialogState(() => isLoading = true);
+
+                      try {
+                        await service.adminChangeEmail(
+                          userId: user.id,
+                          newEmail: newEmail,
+                        );
+
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext);
+                        }
+
+                        await provider.fetchUsers();
+
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              '✅ تم تغيير البريد إلى $newEmail',
+                            ),
+                            backgroundColor: AppTheme.success,
+                            duration: const Duration(seconds: 3),
+                          ),
+                        );
+                      } catch (e) {
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext);
+                        }
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(Helpers.errorMessage(e)),
+                            backgroundColor: AppTheme.error,
+                            duration: const Duration(seconds: 4),
+                          ),
+                        );
+                      }
+                    },
+              icon: isLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.check, size: 18),
+              label: Text(isLoading ? 'جارٍ...' : 'تغيير'),
             ),
           ],
         ),
@@ -1023,6 +738,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
               TextField(
                 controller: passwordController,
                 obscureText: obscure,
+                enabled: !isLoading,
                 decoration: InputDecoration(
                   labelText: 'كلمة المرور الجديدة',
                   prefixIcon: const Icon(Icons.lock_outlined),
@@ -1140,6 +856,561 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         ),
       ),
     );
+  }
+
+  // ═══════════════════════════════════════════════
+  // 💰 نافذة تعديل النقاط
+  // ═══════════════════════════════════════════════
+  Future<void> _showEditPointsDialog(ProfileModel user) async {
+    final amountController = TextEditingController();
+    final reasonController = TextEditingController();
+    final messenger = ScaffoldMessenger.of(context);
+
+    String action = 'add';
+    bool isLoading = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setState) {
+          final amount = int.tryParse(amountController.text) ?? 0;
+          int previewPoints;
+
+          switch (action) {
+            case 'add':
+              previewPoints = user.points + amount;
+              break;
+            case 'deduct':
+              previewPoints = (user.points - amount).clamp(0, 999999999);
+              break;
+            case 'set':
+              previewPoints = amount;
+              break;
+            default:
+              previewPoints = user.points;
+          }
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accent.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.stars,
+                    color: AppTheme.accent,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'تعديل النقاط',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                      Text(
+                        user.username,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(dialogContext).disabledColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.account_balance_wallet,
+                            color: AppTheme.accent, size: 20),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'الرصيد الحالي:',
+                          style: TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${user.points}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: AppTheme.accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'الإجراء:',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _actionButton(
+                          label: 'إضافة',
+                          icon: Icons.add_circle,
+                          color: AppTheme.success,
+                          value: 'add',
+                          current: action,
+                          onTap: () => setState(() => action = 'add'),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _actionButton(
+                          label: 'خصم',
+                          icon: Icons.remove_circle,
+                          color: AppTheme.error,
+                          value: 'deduct',
+                          current: action,
+                          onTap: () => setState(() => action = 'deduct'),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _actionButton(
+                          label: 'تعيين',
+                          icon: Icons.edit,
+                          color: AppTheme.primary,
+                          value: 'set',
+                          current: action,
+                          onTap: () => setState(() => action = 'set'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    enabled: !isLoading,
+                    decoration: const InputDecoration(
+                      labelText: 'المبلغ',
+                      prefixIcon: Icon(Icons.numbers),
+                      hintText: 'مثال: 500',
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: reasonController,
+                    maxLength: 100,
+                    enabled: !isLoading,
+                    decoration: const InputDecoration(
+                      labelText: 'السبب (اختياري)',
+                      prefixIcon: Icon(Icons.notes),
+                      hintText: 'مثال: مكافأة تشجيعية',
+                    ),
+                  ),
+                  if (amount > 0) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppTheme.primary.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.trending_up,
+                              color: AppTheme.primary, size: 20),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'الرصيد بعد التعديل:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '$previewPoints',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: AppTheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actionsPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            actions: [
+              TextButton(
+                onPressed:
+                    isLoading ? null : () => Navigator.pop(dialogContext),
+                child: const Text('إلغاء'),
+              ),
+              ElevatedButton.icon(
+                onPressed: isLoading
+                    ? null
+                    : () => _submitPointsEdit(
+                          dialogContext: dialogContext,
+                          user: user,
+                          amount: amount,
+                          action: action,
+                          reason: reasonController.text.trim(),
+                          messenger: messenger,
+                          setLoading: (v) => setState(() => isLoading = v),
+                        ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: action == 'deduct'
+                      ? AppTheme.error
+                      : (action == 'set'
+                          ? AppTheme.primary
+                          : AppTheme.success),
+                ),
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.check, size: 18),
+                label: Text(isLoading ? 'جارٍ...' : 'تأكيد'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════
+  // تنفيذ تعديل النقاط
+  // ═══════════════════════════════════════════════
+  Future<void> _submitPointsEdit({
+    required BuildContext dialogContext,
+    required ProfileModel user,
+    required int amount,
+    required String action,
+    required String reason,
+    required ScaffoldMessengerState messenger,
+    required Function(bool) setLoading,
+  }) async {
+    if (amount <= 0 && action != 'set') {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('أدخل مبلغاً صحيحاً'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+      return;
+    }
+    if (action == 'set' && amount < 0) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('لا يمكن تعيين قيمة سالبة'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      final pointsProvider = context.read<PointsProvider>();
+      final userProvider = context.read<UserProvider>();
+
+      final finalReason = reason.isEmpty ? _defaultReason(action) : reason;
+
+      int newBalance;
+
+      switch (action) {
+        case 'add':
+          newBalance = await pointsProvider.adminGrant(
+            userId: user.id,
+            amount: amount,
+            reason: finalReason,
+          );
+          break;
+        case 'deduct':
+          newBalance = await pointsProvider.adminDeduct(
+            userId: user.id,
+            amount: amount,
+            reason: finalReason,
+          );
+          break;
+        case 'set':
+        default:
+          newBalance = await pointsProvider.setUserPoints(
+            userId: user.id,
+            newValue: amount,
+            reason: finalReason,
+          );
+          break;
+      }
+
+      userProvider.updateUserPoints(user.id, newBalance);
+
+      if (dialogContext.mounted) {
+        Navigator.pop(dialogContext);
+      }
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('✅ تم التحديث • الرصيد الجديد: $newBalance'),
+          backgroundColor: AppTheme.success,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      if (dialogContext.mounted) {
+        Navigator.pop(dialogContext);
+      }
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(Helpers.errorMessage(e)),
+          backgroundColor: AppTheme.error,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
+  String _defaultReason(String action) {
+    switch (action) {
+      case 'add':
+        return 'مكافأة إدارية';
+      case 'deduct':
+        return 'خصم إداري';
+      case 'set':
+        return 'تعيين إداري';
+      default:
+        return 'تعديل إداري';
+    }
+  }
+
+  Widget _actionButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required String value,
+    required String current,
+    required VoidCallback onTap,
+  }) {
+    final isSelected = current == value;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color:
+              isSelected ? color.withValues(alpha: 0.15) : Colors.transparent,
+          border: Border.all(
+            color: isSelected ? color : Colors.grey.withValues(alpha: 0.3),
+            width: isSelected ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? color : Colors.grey,
+              size: 20,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? color : Colors.grey,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════
+  // 🗑️ حذف الحساب نهائياً
+  // ═══════════════════════════════════════════════
+  Future<void> _deleteUser(
+    ProfileModel user,
+    UserProvider provider,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    // ─── تأكيد أول ───
+    final firstConfirm = await showDialog<bool>(
+      context: navigator.context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded,
+                color: AppTheme.error, size: 28),
+            SizedBox(width: 8),
+            Text(
+              'تحذير خطير!',
+              style: TextStyle(color: AppTheme.error),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'سيتم حذف حساب "${user.username}" نهائياً، ومعها:',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text('• الحساب بالكامل'),
+            const Text('• جميع صوره من Storage'),
+            const Text('• جميع سجلاته وبياناته'),
+            const Text('• جميع بلاغاته وتقييماته'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppTheme.error.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.error_outline,
+                      color: AppTheme.error, size: 18),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'لا يمكن التراجع عن هذا الإجراء!',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.error,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('متابعة'),
+          ),
+        ],
+      ),
+    );
+
+    if (firstConfirm != true) return;
+    if (!mounted) return;
+
+    // ─── حوار ثاني ───
+    final finalConfirm = await showDialog<bool>(
+      context: navigator.context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تأكيد نهائي'),
+        content: Text('هل أنت متأكد 100% من حذف "${user.username}"؟'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.delete_forever, size: 18),
+            label: const Text('حذف نهائي'),
+          ),
+        ],
+      ),
+    );
+
+    if (finalConfirm != true) return;
+
+    try {
+      final response = await Supabase.instance.client.functions.invoke(
+        'admin-delete-user',
+        body: {'user_id': user.id},
+      );
+
+      if (response.status == 200) {
+        await provider.fetchUsers();
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('✅ تم حذف حساب ${user.username} نهائياً'),
+            backgroundColor: AppTheme.success,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      } else {
+        final error = response.data?['error'] ?? 'خطأ غير معروف';
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('فشل: $error'),
+            backgroundColor: AppTheme.error,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('خطأ: $e'),
+          backgroundColor: AppTheme.error,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
 
   Future<bool?> _confirm({

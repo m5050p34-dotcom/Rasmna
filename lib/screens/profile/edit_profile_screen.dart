@@ -38,7 +38,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _originalUsername = profile.username;
       _usernameController.text = profile.username;
       _bioController.text = profile.bio ?? '';
-      _hadAvatarBefore = profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty;
+      _hadAvatarBefore =
+          profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty;
     }
   }
 
@@ -56,11 +57,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   bool get _avatarChanged => _newAvatarFile != null;
-
   int get _avatarCost => _hadAvatarBefore ? kAvatarChangeCost : 0;
-
   int get _currentPoints => context.read<AuthProvider>().profile?.points ?? 0;
-
   int get _totalCost =>
       (_usernameChanged ? kUsernameChangeCost : 0) + _avatarCost;
 
@@ -75,7 +73,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
       if (picked == null) return;
 
-      // إذا كانت هناك صورة سابقة → تأكيد
       if (_hadAvatarBefore) {
         final confirmed = await _showAvatarChangeConfirmation();
         if (confirmed != true) return;
@@ -93,7 +90,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<bool?> _showAvatarChangeConfirmation() {
     final canAfford = _currentPoints >= kAvatarChangeCost;
-
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -119,57 +115,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: (canAfford ? AppTheme.warning : AppTheme.error)
-                    .withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: (canAfford ? AppTheme.warning : AppTheme.error)
-                      .withValues(alpha: 0.3),
-                ),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    canAfford
-                        ? 'سيتم خصم $kAvatarChangeCost نقطة لتغيير الصورة'
-                        : 'رصيدك غير كافٍ',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: canAfford ? AppTheme.warning : AppTheme.error,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.stars,
-                          color: AppTheme.accent, size: 16),
-                      const SizedBox(width: 4),
-                      Text('رصيدك: $_currentPoints نقطة',
-                          style: const TextStyle(fontSize: 12)),
-                    ],
-                  ),
-                  if (canAfford) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'الرصيد بعد الخصم: ${_currentPoints - kAvatarChangeCost} نقطة',
-                      style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.success),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
+        content: Text(
+          canAfford
+              ? 'سيتم خصم $kAvatarChangeCost نقطة لتغيير الصورة'
+              : 'رصيدك غير كافٍ',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: canAfford ? AppTheme.warning : AppTheme.error,
+          ),
         ),
         actions: [
           TextButton(
@@ -179,9 +132,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ElevatedButton.icon(
             onPressed: canAfford ? () => Navigator.pop(ctx, true) : null,
             icon: const Icon(Icons.check, size: 18),
-            label: Text(canAfford
-                ? 'تأكيد ($kAvatarChangeCost نقطة)'
-                : 'رصيد غير كافٍ'),
+            label: Text(canAfford ? 'تأكيد' : 'رصيد غير كافٍ'),
           ),
         ],
       ),
@@ -216,6 +167,201 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  // ═══════════════════════════════════════════════
+  // 📧 نافذة تغيير البريد
+  // ═══════════════════════════════════════════════
+  Future<void> _showChangeEmailDialog() async {
+    final profile = context.read<AuthProvider>().profile;
+    if (profile == null) return;
+
+    final emailController = TextEditingController();
+    final messenger = ScaffoldMessenger.of(context);
+    bool isLoading = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.email,
+                    color: AppTheme.primary, size: 22),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text('تغيير البريد الإلكتروني',
+                    style: TextStyle(fontSize: 16)),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ─── البريد الحالي ───
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Theme.of(dialogContext)
+                        .colorScheme
+                        .surfaceContainerHighest
+                        .withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.email_outlined, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          profile.email,
+                          style: const TextStyle(
+                            decoration: TextDecoration.lineThrough,
+                            color: Colors.grey,
+                            fontSize: 13,
+                          ),
+                          textDirection: TextDirection.ltr,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Center(
+                  child: Icon(Icons.arrow_downward,
+                      color: AppTheme.primary, size: 20),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  textDirection: TextDirection.ltr,
+                  enabled: !isLoading,
+                  decoration: const InputDecoration(
+                    labelText: 'البريد الجديد',
+                    prefixIcon: Icon(Icons.email),
+                    hintText: 'newemail@example.com',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.warning.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppTheme.warning.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.info_outline,
+                          color: AppTheme.warning, size: 18),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'سيُرسل رابط تأكيد للبريد الجديد.\n'
+                          'لن يتغير البريد حتى تضغط الرابط.',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed:
+                  isLoading ? null : () => Navigator.pop(dialogContext),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton.icon(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      final newEmail = emailController.text.trim();
+
+                      if (newEmail.isEmpty || !newEmail.contains('@')) {
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('أدخل بريداً صحيحاً'),
+                            backgroundColor: AppTheme.error,
+                          ),
+                        );
+                        return;
+                      }
+
+                      if (newEmail.toLowerCase() ==
+                          profile.email.toLowerCase()) {
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('البريد نفسه — لم يتغير'),
+                            backgroundColor: AppTheme.warning,
+                          ),
+                        );
+                        return;
+                      }
+
+                      setDialogState(() => isLoading = true);
+
+                      try {
+                        await _service.changeMyEmail(newEmail);
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext);
+                        }
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              '✅ تم إرسال رابط تأكيد إلى $newEmail\n'
+                              'افتح بريدك واضغط الرابط لتفعيل التغيير.',
+                            ),
+                            backgroundColor: AppTheme.success,
+                            duration: const Duration(seconds: 6),
+                          ),
+                        );
+                      } catch (e) {
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext);
+                        }
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(Helpers.errorMessage(e)),
+                            backgroundColor: AppTheme.error,
+                            duration: const Duration(seconds: 4),
+                          ),
+                        );
+                      }
+                    },
+              icon: isLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.send, size: 18),
+              label: Text(isLoading ? 'جارٍ...' : 'إرسال الرابط'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -242,7 +388,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     try {
       int totalSpent = 0;
 
-      // 1) الصورة (تخصم 50 إن كانت موجودة سابقاً)
       if (_avatarChanged) {
         final avatarResult = await _service.changeAvatar(
           userId: userId,
@@ -251,7 +396,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         totalSpent += avatarResult.pointsSpent;
       }
 
-      // 2) الاسم (يخصم 50)
       if (_usernameChanged) {
         final nameResult = await _service.changeUsername(
           userId: userId,
@@ -260,7 +404,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         totalSpent += nameResult.pointsSpent;
       }
 
-      // 3) النبذة
       await _service.updateProfile(userId, {
         'bio': _bioController.text.trim(),
       });
@@ -326,7 +469,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildNameBox(_originalUsername, true),
+            Text(_originalUsername,
+                style: const TextStyle(
+                    decoration: TextDecoration.lineThrough,
+                    color: Colors.grey)),
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 6),
               child: Center(
@@ -334,55 +480,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     color: AppTheme.primary, size: 20),
               ),
             ),
-            _buildNameBox(newName, false),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: (canAfford ? AppTheme.warning : AppTheme.error)
-                    .withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: (canAfford ? AppTheme.warning : AppTheme.error)
-                      .withValues(alpha: 0.3),
-                ),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        canAfford ? Icons.info_outline : Icons.error_outline,
-                        color: canAfford ? AppTheme.warning : AppTheme.error,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          canAfford
-                              ? 'سيتم خصم $kUsernameChangeCost نقطة'
-                              : 'رصيدك غير كافٍ',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color:
-                                canAfford ? AppTheme.warning : AppTheme.error,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(Icons.stars,
-                          color: AppTheme.accent, size: 16),
-                      const SizedBox(width: 4),
-                      Text('رصيدك: $_currentPoints نقطة',
-                          style: const TextStyle(fontSize: 12)),
-                    ],
-                  ),
-                ],
+            Text(newName,
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, color: AppTheme.primary)),
+            const SizedBox(height: 12),
+            Text(
+              canAfford
+                  ? 'سيتم خصم $kUsernameChangeCost نقطة'
+                  : 'رصيدك غير كافٍ',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: canAfford ? AppTheme.warning : AppTheme.error,
               ),
             ),
           ],
@@ -395,47 +503,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ElevatedButton.icon(
             onPressed: canAfford ? () => Navigator.pop(ctx, true) : null,
             icon: const Icon(Icons.check, size: 18),
-            label: Text(canAfford
-                ? 'تأكيد ($kUsernameChangeCost نقطة)'
-                : 'رصيد غير كافٍ'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNameBox(String name, bool isOld) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isOld
-            ? Theme.of(context)
-                .colorScheme
-                .surfaceContainerHighest
-                .withValues(alpha: 0.5)
-            : AppTheme.primary.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: isOld
-            ? null
-            : Border.all(color: AppTheme.primary.withValues(alpha: 0.4)),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            isOld ? Icons.person_outline : Icons.person,
-            size: 18,
-            color: isOld ? Colors.grey : AppTheme.primary,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              name,
-              style: TextStyle(
-                decoration: isOld ? TextDecoration.lineThrough : null,
-                fontWeight: isOld ? null : FontWeight.bold,
-                color: isOld ? Colors.grey : AppTheme.primary,
-              ),
-            ),
+            label: const Text('تأكيد'),
           ),
         ],
       ),
@@ -456,7 +524,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ─── الصورة الرمزية ───
+              // ═══════════════════════════════════
+              // الصورة الرمزية
+              // ═══════════════════════════════════
               Center(
                 child: GestureDetector(
                   onTap: _showAvatarOptions,
@@ -470,7 +540,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             ? FileImage(_newAvatarFile!)
                             : (profile?.avatarUrl != null &&
                                     profile!.avatarUrl!.isNotEmpty)
-                                ? CachedNetworkImageProvider(profile.avatarUrl!)
+                                ? CachedNetworkImageProvider(
+                                    profile.avatarUrl!)
                                 : null,
                         child: (_newAvatarFile == null &&
                                 (profile?.avatarUrl == null ||
@@ -478,9 +549,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             ? Text(
                                 profile?.initial ?? '?',
                                 style: const TextStyle(
-                                    fontSize: 40,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppTheme.primary),
+                                  fontSize: 40,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.primary,
+                                ),
                               )
                             : null,
                       ),
@@ -519,7 +591,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
               const SizedBox(height: 24),
 
-              // ─── الرصيد ───
+              // ═══════════════════════════════════
+              // الرصيد
+              // ═══════════════════════════════════
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
@@ -543,9 +617,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     Text(
                       '$currentPoints نقطة',
                       style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.accent,
-                          fontSize: 16),
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.accent,
+                        fontSize: 16,
+                      ),
                     ),
                     const Spacer(),
                     if (_totalCost > 0)
@@ -570,7 +645,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
               const SizedBox(height: 24),
 
-              // ─── الاسم ───
+              // ═══════════════════════════════════
+              // 📧 البريد الإلكتروني (قابل للتغيير)
+              // ═══════════════════════════════════
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.email,
+                      color: AppTheme.primary),
+                  title: const Text('البريد الإلكتروني'),
+                  subtitle: Text(
+                    profile?.email ?? '',
+                    textDirection: TextDirection.ltr,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  trailing: TextButton.icon(
+                    onPressed: _showChangeEmailDialog,
+                    icon: const Icon(Icons.edit, size: 16),
+                    label: const Text('تغيير',
+                        style: TextStyle(fontSize: 12)),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // ═══════════════════════════════════
+              // الاسم
+              // ═══════════════════════════════════
               TextFormField(
                 controller: _usernameController,
                 decoration: InputDecoration(
@@ -599,15 +700,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     border: Border.all(
                         color: AppTheme.warning.withValues(alpha: 0.3)),
                   ),
-                  child: Row(
+                  child: const Row(
                     children: [
-                      const Icon(Icons.info_outline,
+                      Icon(Icons.info_outline,
                           color: AppTheme.warning, size: 18),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'تغيير الاسم يخصم $kUsernameChangeCost نقطة',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                             color: AppTheme.warning,
@@ -621,7 +722,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
               const SizedBox(height: 16),
 
-              // ─── النبذة ───
+              // النبذة
               TextFormField(
                 controller: _bioController,
                 maxLines: 4,
@@ -633,35 +734,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: 24),
 
-              // ─── البريد ───
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color:
-                      Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.email_outlined),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        profile?.email ?? '',
-                        textDirection: TextDirection.ltr,
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    ),
-                    const Icon(Icons.lock, size: 16),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // ─── زر الحفظ ───
+              // زر الحفظ
               SizedBox(
                 height: 52,
                 child: ElevatedButton.icon(

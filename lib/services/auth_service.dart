@@ -10,15 +10,13 @@ class AuthService {
   Session? get currentSession => _supabase.auth.currentSession;
   bool get isAuthenticated => currentUser != null;
   String? get currentUserId => currentUser?.id;
+  String? get currentEmail => currentUser?.email;
 
-  // ═══════════════════════════════════════════════
-  // تدفق حالة المصادقة (للاستماع)
-  // ═══════════════════════════════════════════════
   Stream<AuthState> get authStateChanges =>
       _supabase.auth.onAuthStateChange;
 
   // ═══════════════════════════════════════════════
-  // إنشاء حساب جديد
+  // إنشاء حساب
   // ═══════════════════════════════════════════════
   Future<AuthResponse> signUp({
     required String email,
@@ -65,6 +63,17 @@ class AuthService {
   Future<void> updatePassword(String newPassword) async {
     await _supabase.auth.updateUser(
       UserAttributes(password: newPassword),
+    );
+  }
+
+  // ═══════════════════════════════════════════════
+  // 📧 تحديث البريد الإلكتروني
+  // ═══════════════════════════════════════════════
+  // ⚠️ Supabase سيرسل رسالة تأكيد للبريد الجديد
+  //    يتغير البريد بعد الضغط على رابط التأكيد
+  Future<void> updateEmail(String newEmail) async {
+    await _supabase.auth.updateUser(
+      UserAttributes(email: newEmail.trim()),
     );
   }
 }

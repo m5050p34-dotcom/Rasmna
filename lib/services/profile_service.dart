@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../models/photo_model.dart';
@@ -12,6 +11,9 @@ class ProfileService {
   final PointsService _pointsService = PointsService();
   final _uuid = const Uuid();
 
+  // ═══════════════════════════════════════════════
+  // جلب ملف شخصي
+  // ═══════════════════════════════════════════════
   Future<ProfileModel> getProfile(String userId) async {
     final response = await _supabase
         .from('profiles')
@@ -21,6 +23,9 @@ class ProfileService {
     return ProfileModel.fromJson(response);
   }
 
+  // ═══════════════════════════════════════════════
+  // جلب كل الملفات (للأدمن)
+  // ═══════════════════════════════════════════════
   Future<List<ProfileModel>> getAllProfiles({
     String? searchQuery,
     bool onlyAdmins = false,
@@ -40,6 +45,9 @@ class ProfileService {
         .toList();
   }
 
+  // ═══════════════════════════════════════════════
+  // تحديث ملف شخصي
+  // ═══════════════════════════════════════════════
   Future<void> updateProfile(
     String userId,
     Map<String, dynamic> updates,
@@ -47,6 +55,9 @@ class ProfileService {
     await _supabase.from('profiles').update(updates).eq('id', userId);
   }
 
+  // ═══════════════════════════════════════════════
+  // 🖼️ رفع صورة رمزية
+  // ═══════════════════════════════════════════════
   Future<String> uploadAvatarFile(String userId, File file) async {
     final fileName = '$userId/avatar_${_uuid.v4()}.jpg';
     await _supabase.storage.from('avatars').upload(
@@ -57,6 +68,9 @@ class ProfileService {
     return _supabase.storage.from('avatars').getPublicUrl(fileName);
   }
 
+  // ═══════════════════════════════════════════════
+  // 🖼️ تغيير الصورة الرمزية (خصم 50 نقطة)
+  // ═══════════════════════════════════════════════
   Future<AvatarChangeResult> changeAvatar({
     required String userId,
     required File file,
@@ -78,6 +92,9 @@ class ProfileService {
     );
   }
 
+  // ═══════════════════════════════════════════════
+  // 💰 تغيير الاسم (خصم 50 نقطة)
+  // ═══════════════════════════════════════════════
   Future<UsernameChangeResult> changeUsername({
     required String userId,
     required String newUsername,
@@ -111,13 +128,12 @@ class ProfileService {
   }
 
   // ═══════════════════════════════════════════════
-  // 🎁 المكافأة اليومية (إصلاح كامل)
+  // 🎁 المكافأة اليومية
   // ═══════════════════════════════════════════════
   Future<DailyRewardResult> claimDailyReward(String userId) async {
     final profile = await getProfile(userId);
     final now = DateTime.now();
 
-    // ─── التحقق: هل استلم اليوم؟ ───
     if (profile.lastLoginDate != null) {
       final last = profile.lastLoginDate!;
       final sameDay = now.year == last.year &&
@@ -132,23 +148,18 @@ class ProfileService {
     int earnedPoints;
 
     if (profile.lastLoginDate == null) {
-      // ─── أول تسجيل على الإطلاق ───
       newStreak = 1;
       earnedPoints = 10;
     } else {
-      final last = profile.lastLoginDate!;
-
-      // ✅ الحل: نحسب الفرق بالأيام التقويمية (ليس بالساعات!)
       final nowDate = DateTime(now.year, now.month, now.day);
-      final lastDate = DateTime(last.year, last.month, last.day);
+      final lastDate = DateTime(
+        profile.lastLoginDate!.year,
+        profile.lastLoginDate!.month,
+        profile.lastLoginDate!.day,
+      );
       final diffInDays = nowDate.difference(lastDate).inDays;
 
-      debugPrint('📅 Last login: $lastDate');
-      debugPrint('📅 Today: $nowDate');
-      debugPrint('📅 Diff in days: $diffInDays');
-
       if (diffInDays == 1) {
-        // ─── يوم متصل ───
         final next = profile.loginStreak + 1;
         if (next > 7) {
           newStreak = 1;
@@ -158,7 +169,6 @@ class ProfileService {
           earnedPoints = next * 10;
         }
       } else {
-        // ─── انقطاع (أكثر من يوم أو نفس اليوم) ───
         newStreak = 1;
         earnedPoints = 10;
       }
@@ -178,8 +188,6 @@ class ProfileService {
       'last_login_date': now.toIso8601String(),
     }).eq('id', userId);
 
-    debugPrint('🎁 Daily reward: Day $newStreak, +$earnedPoints points');
-
     return DailyRewardResult(
       earnedPoints: earnedPoints,
       day: newStreak,
@@ -188,18 +196,27 @@ class ProfileService {
     );
   }
 
+  // ═══════════════════════════════════════════════
+  // 🚫 حظر / رفع حظر
+  // ═══════════════════════════════════════════════
   Future<void> setBanned(String userId, bool banned) async {
     await _supabase
         .from('profiles')
         .update({'is_banned': banned}).eq('id', userId);
   }
 
+  // ═══════════════════════════════════════════════
+  // 👑 ترقية / تنزيل أدمن
+  // ═══════════════════════════════════════════════
   Future<void> setAdmin(String userId, bool isAdmin) async {
     await _supabase
         .from('profiles')
         .update({'is_admin': isAdmin}).eq('id', userId);
   }
 
+  // ═══════════════════════════════════════════════
+  // 📊 إحصائيات عامة
+  // ═══════════════════════════════════════════════
   Future<Map<String, int>> getStats() async {
     final profiles = await _supabase.from('profiles').select('id, points');
     final photos = await _supabase.from('photos').select('id');
@@ -215,6 +232,9 @@ class ProfileService {
     };
   }
 
+  // ═══════════════════════════════════════════════
+  // 👤 صور مصور معين
+  // ═══════════════════════════════════════════════
   Future<List<PhotoModel>> getPhotographerPhotos(String userId) async {
     final response = await _supabase
         .from('photos')
@@ -227,6 +247,36 @@ class ProfileService {
     return (response as List)
         .map((e) => PhotoModel.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  // ═══════════════════════════════════════════════
+  // 📧 تغيير البريد (للمستخدم نفسه - مع تأكيد)
+  // ═══════════════════════════════════════════════
+  Future<void> changeMyEmail(String newEmail) async {
+    await _supabase.auth.updateUser(
+      UserAttributes(email: newEmail.trim()),
+    );
+  }
+
+  // ═══════════════════════════════════════════════
+  // 📧 تغيير البريد (للأدمن - بدون تأكيد)
+  // ═══════════════════════════════════════════════
+  Future<void> adminChangeEmail({
+    required String userId,
+    required String newEmail,
+  }) async {
+    final response = await _supabase.functions.invoke(
+      'admin-change-email',
+      body: {
+        'user_id': userId,
+        'new_email': newEmail.trim(),
+      },
+    );
+
+    if (response.status != 200) {
+      final error = response.data?['error'] ?? 'فشل تغيير البريد';
+      throw Exception(error);
+    }
   }
 }
 
