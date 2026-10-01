@@ -41,20 +41,6 @@ class MainDrawer extends StatelessWidget {
                   const Divider(height: 1),
                   _menuItem(
                     context: context,
-                    icon: Icons.person_outline,
-                    title: T.get(context, 'my_profile'),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ProfileScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  _menuItem(
-                    context: context,
                     icon: Icons.add_photo_alternate_outlined,
                     title: T.get(context, 'upload_photo'),
                     onTap: () {
@@ -81,22 +67,6 @@ class MainDrawer extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (_) => const FavoritesScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  _menuItem(
-                    context: context,
-                    icon: Icons.history,
-                    iconColor: AppTheme.primary,
-                    title: 'سجل النقاط',
-                    subtitle: 'عرض كل حركات النقاط',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const TransactionsScreen(),
                         ),
                       );
                     },
@@ -202,86 +172,97 @@ class MainDrawer extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: isAdmin
-                      ? Border.all(color: AppTheme.warning, width: 3)
-                      : null,
+          GestureDetector(
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ProfileScreen(),
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: hasAvatar
-                    ? Image.network(
-                        profile.avatarUrl as String,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            _initialText(profile?.initial),
-                        loadingBuilder: (_, child, progress) {
-                          if (progress == null) return child;
-                          return _initialText(profile?.initial);
+              );
+            },
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: isAdmin
+                        ? Border.all(color: AppTheme.warning, width: 3)
+                        : null,
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: hasAvatar
+                      ? Image.network(
+                          profile.avatarUrl as String,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              _initialText(profile?.initial),
+                          loadingBuilder: (_, child, progress) {
+                            if (progress == null) return child;
+                            return _initialText(profile?.initial);
+                          },
+                        )
+                      : _initialText(profile?.initial),
+                ),
+                if (isAdmin)
+                  Positioned(
+                    bottom: -8,
+                    left: -8,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(30),
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const AdminDashboard(),
+                            ),
+                          );
                         },
-                      )
-                    : _initialText(profile?.initial),
-              ),
-              if (isAdmin)
-                Positioned(
-                  bottom: -8,
-                  left: -8,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(30),
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const AdminDashboard(),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                        ),
                         child: Container(
-                          padding: const EdgeInsets.all(5),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [
-                                Color(0xFFFFB800),
-                                Color(0xFFFF8C00),
+                          padding: const EdgeInsets.all(2),
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Color(0xFFFFB800),
+                                  Color(0xFFFF8C00),
+                                ],
+                              ),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFFFFB800)
+                                      .withValues(alpha: 0.5),
+                                  blurRadius: 8,
+                                  spreadRadius: 1,
+                                ),
                               ],
                             ),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFFFFB800)
-                                    .withValues(alpha: 0.5),
-                                blurRadius: 8,
-                                spreadRadius: 1,
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.admin_panel_settings,
-                            color: Colors.white,
-                            size: 16,
+                            child: const Icon(
+                              Icons.admin_panel_settings,
+                              color: Colors.white,
+                              size: 16,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -323,30 +304,51 @@ class MainDrawer extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.stars,
-                          color: Colors.amber, size: 14),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${profile?.points ?? 0}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const TransactionsScreen(),
                         ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 3,
                       ),
-                    ],
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.stars,
+                              color: Colors.amber, size: 14),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${profile?.points ?? 0}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.arrow_forward_ios,
+                            color: Colors.white70,
+                            size: 9,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
