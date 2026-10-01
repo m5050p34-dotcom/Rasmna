@@ -11,6 +11,13 @@ class ProfileModel {
   final bool isBanned;
   final DateTime createdAt;
 
+  // ═══════════════════════════════════════════════
+  // ✅ جديد: حقول الآيقونة النشطة (متجر الآيقونات)
+  // ═══════════════════════════════════════════════
+  final String? activeIconId;
+  final String? activeIconUrl;
+  final DateTime? activeIconExpiresAt;
+
   ProfileModel({
     required this.id,
     required this.username,
@@ -23,6 +30,9 @@ class ProfileModel {
     required this.isAdmin,
     required this.isBanned,
     required this.createdAt,
+    this.activeIconId,
+    this.activeIconUrl,
+    this.activeIconExpiresAt,
   });
 
   factory ProfileModel.fromJson(Map<String, dynamic> json) {
@@ -42,6 +52,11 @@ class ProfileModel {
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),
+      activeIconId: json['active_icon_id'] as String?,
+      activeIconUrl: json['active_icon_url'] as String?,
+      activeIconExpiresAt: json['active_icon_expires_at'] != null
+          ? DateTime.tryParse(json['active_icon_expires_at'] as String)
+          : null,
     );
   }
 
@@ -57,6 +72,9 @@ class ProfileModel {
         'is_admin': isAdmin,
         'is_banned': isBanned,
         'created_at': createdAt.toIso8601String(),
+        'active_icon_id': activeIconId,
+        'active_icon_url': activeIconUrl,
+        'active_icon_expires_at': activeIconExpiresAt?.toIso8601String(),
       };
 
   ProfileModel copyWith({
@@ -69,6 +87,10 @@ class ProfileModel {
     DateTime? lastLoginDate,
     bool? isAdmin,
     bool? isBanned,
+    String? activeIconId,
+    String? activeIconUrl,
+    DateTime? activeIconExpiresAt,
+    bool clearActiveIcon = false,
   }) {
     return ProfileModel(
       id: id,
@@ -82,6 +104,13 @@ class ProfileModel {
       isAdmin: isAdmin ?? this.isAdmin,
       isBanned: isBanned ?? this.isBanned,
       createdAt: createdAt,
+      // ✅ clearActiveIcon يسمح بإزالة الآيقونة صراحةً
+      activeIconId: clearActiveIcon ? null : (activeIconId ?? this.activeIconId),
+      activeIconUrl:
+          clearActiveIcon ? null : (activeIconUrl ?? this.activeIconUrl),
+      activeIconExpiresAt: clearActiveIcon
+          ? null
+          : (activeIconExpiresAt ?? this.activeIconExpiresAt),
     );
   }
 
@@ -103,4 +132,28 @@ class ProfileModel {
 
   /// 🎁 نقاط المكافأة حسب اليوم الجديد (10 × يوم)
   int get nextRewardPoints => nextRewardDay * 10;
+
+  // ═══════════════════════════════════════════════
+  // ✅ جديد: getters الآيقونة النشطة
+  // ═══════════════════════════════════════════════
+
+  /// هل لدى المستخدم آيقونة فعّالة (غير منتهية)؟
+  bool get hasActiveIcon {
+    if (activeIconUrl == null || activeIconUrl!.isEmpty) return false;
+    if (activeIconExpiresAt == null) return false;
+    return activeIconExpiresAt!.isAfter(DateTime.now());
+  }
+
+  /// عدد الأيام المتبقية قبل انتهاء صلاحية الآيقونة (0 إذا منتهية)
+  int get activeIconDaysRemaining {
+    if (activeIconExpiresAt == null) return 0;
+    final diff = activeIconExpiresAt!.difference(DateTime.now()).inDays;
+    return diff < 0 ? 0 : diff;
+  }
+
+  /// هل الآيقونة على وشك الانتهاء (أقل من 3 أيام)؟
+  bool get isActiveIconExpiringSoon {
+    if (!hasActiveIcon) return false;
+    return activeIconDaysRemaining <= 3;
+  }
 }

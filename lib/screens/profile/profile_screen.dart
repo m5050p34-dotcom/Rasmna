@@ -32,7 +32,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final uid = context.read<AuthProvider>().userId;
+      final auth = context.read<AuthProvider>();
+      final uid = auth.userId;
+
+      // ✅ تنظيف الأيقونة المنتهية محلياً (إن وُجدت)
+      auth.clearExpiredIconLocally();
+
       if (uid != null) {
         context.read<PhotoProvider>().fetchUserPhotos(uid);
         _loadFollowStats(uid);
@@ -106,6 +111,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     child: Column(
                       children: [
+                        // ─── الأفاتار ───
                         CircleAvatar(
                           radius: 48,
                           backgroundColor: Colors.white,
@@ -128,14 +134,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               : null,
                         ),
                         const SizedBox(height: 12),
-                        Text(
-                          profile.username,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+
+                        // ═══════════════════════════════════
+                        // ✅ الاسم + الآيقونة النشطة
+                        // ═══════════════════════════════════
+                        _buildNameWithIcon(context, profile),
+
+                        // ─── البريد ───
                         Text(
                           profile.email,
                           style: const TextStyle(
@@ -144,6 +149,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           textDirection: TextDirection.ltr,
                         ),
+
+                        // ─── النبذة ───
                         if (profile.bio != null &&
                             profile.bio!.isNotEmpty) ...[
                           const SizedBox(height: 10),
@@ -160,6 +167,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                         ],
+
                         const SizedBox(height: 16),
 
                         // ─── النقاط ───
@@ -238,6 +246,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ],
                         ),
 
+                        // ─── شارة ADMIN ───
                         if (profile.isAdmin)
                           Padding(
                             padding: const EdgeInsets.only(top: 12),
@@ -356,6 +365,132 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         },
       ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════
+  // ✅ بناء الاسم مع الآيقونة النشطة
+  // ═══════════════════════════════════════════════
+  Widget _buildNameWithIcon(BuildContext context, dynamic profile) {
+    final hasIcon = profile.activeIconUrl != null &&
+        (profile.activeIconUrl as String).isNotEmpty &&
+        profile.activeIconExpiresAt != null &&
+        (profile.activeIconExpiresAt as DateTime).isAfter(DateTime.now());
+
+    final expiringSoon = hasIcon &&
+        profile.activeIconDaysRemaining <= 3;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // ─── الآيقونة النشطة (على يمين الاسم بصرياً) ───
+        if (hasIcon)
+          Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: Tooltip(
+              message: expiringSoon
+                  ? 'آيقونتك ستنتهي خلال ${profile.activeIconDaysRemaining} يوم'
+                  : 'آيقونة نشطة • ${profile.activeIconDaysRemaining} يوم متبقٍ',
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // إطار متدرّج للأيقونة
+                  Container(
+                    width: 34,
+                    height: 34,
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: expiringSoon
+                            ? [AppTheme.error, AppTheme.warning]
+                            : [
+                                const Color(0xFFFFD700),
+                                const Color(0xFFFFA500),
+                              ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (expiringSoon
+                                  ? AppTheme.error
+                                  : const Color(0xFFFFD700))
+                              .withValues(alpha: 0.5),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      padding: const EdgeInsets.all(2),
+                      child: ClipOval(
+                        child: CachedNetworkImage(
+                          imageUrl: profile.activeIconUrl as String,
+                          fit: BoxFit.cover,
+                          width: 26,
+                          height: 26,
+                          placeholder: (_, __) => const Center(
+                            child: SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: AppTheme.primary,
+                              ),
+                            ),
+                          ),
+                          errorWidget: (_, __, ___) => const Icon(
+                            Icons.broken_image,
+                            size: 16,
+                            color: AppTheme.error,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // ─── شارة تحذير إذا قاربت على الانتهاء ───
+                  if (expiringSoon)
+                    Positioned(
+                      top: -4,
+                      right: -4,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: AppTheme.error,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.warning_amber_rounded,
+                          color: Colors.white,
+                          size: 10,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+        // ─── الاسم ───
+        Flexible(
+          child: Text(
+            profile.username,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 

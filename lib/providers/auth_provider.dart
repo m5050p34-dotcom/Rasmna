@@ -23,6 +23,16 @@ class AuthProvider extends ChangeNotifier {
   String? get error => _error;
   String? get userId => _authService.currentUserId;
 
+  // ═══════════════════════════════════════════════
+  // ✅ جديد: getters الآيقونة النشطة
+  // ═══════════════════════════════════════════════
+  String? get activeIconUrl => _profile?.activeIconUrl;
+  bool get hasActiveIcon => _profile?.hasActiveIcon ?? false;
+  int get activeIconDaysRemaining =>
+      _profile?.activeIconDaysRemaining ?? 0;
+  bool get isActiveIconExpiringSoon =>
+      _profile?.isActiveIconExpiringSoon ?? false;
+
   AuthProvider() {
     _init();
   }
@@ -110,6 +120,28 @@ class AuthProvider extends ChangeNotifier {
     if (uid != null) {
       _profile = await _profileService.getProfile(uid);
       await ScreenSecurityService.applyPolicy(isAdmin: isAdmin);
+      notifyListeners();
+    }
+  }
+
+  // ═══════════════════════════════════════════════
+  // ✅ جديد: تحديث البروفايل بعد شراء أيقونة
+  //    (نفس refreshProfile لكن مع اسم أوضح للاستخدام)
+  // ═══════════════════════════════════════════════
+  Future<void> refreshAfterPurchase() async {
+    await refreshProfile();
+  }
+
+  // ═══════════════════════════════════════════════
+  // ✅ جديد: إزالة الأيقونة المنتهية محلياً
+  //    (يُستدعى عند فتح التطبيق أو من شاشة المتجر)
+  // ═══════════════════════════════════════════════
+  void clearExpiredIconLocally() {
+    if (_profile == null) return;
+    if (_profile!.activeIconUrl == null) return;
+    // إذا الأيقونة منتهية، نمسحها محلياً
+    if (!_profile!.hasActiveIcon) {
+      _profile = _profile!.copyWith(clearActiveIcon: true);
       notifyListeners();
     }
   }

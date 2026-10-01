@@ -8,6 +8,7 @@ import '../../utils/app_theme.dart';
 import 'manage_banners_screen.dart';
 import 'manage_categories_screen.dart';
 import 'manage_featured_screen.dart';
+import 'manage_icons_screen.dart';
 import 'manage_sort_options_screen.dart';
 import 'manage_users_screen.dart';
 import 'moderate_photos_screen.dart';
@@ -126,7 +127,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                             fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 12),
 
-                    // 🚨 البلاغات (مع شارة عدد)
+                    // 🚨 البلاغات
                     _actionCardWithBadge(
                       'البلاغات',
                       'مراجعة بلاغات المستخدمين على الصور',
@@ -141,6 +142,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           ),
                         );
                         _loadStats();
+                      },
+                    ),
+                    const SizedBox(height: 12),
+
+                    // ═══════════════════════════════════════════
+                    // 🎨 إدارة الأيقونات (جديد)
+                    // ═══════════════════════════════════════════
+                    _actionCard(
+                      'إدارة الأيقونات',
+                      'إضافة، تعديل، تسعير، تعطيل أيقونات المتجر',
+                      Icons.emoji_emotions,
+                      const Color(0xFFFFB800),
+                      () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ManageIconsScreen(),
+                          ),
+                        );
                       },
                     ),
                     const SizedBox(height: 12),
@@ -276,7 +296,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  // ⭐ بطاقة مع شارة عدد
   Widget _actionCardWithBadge(
     String title,
     String subtitle,

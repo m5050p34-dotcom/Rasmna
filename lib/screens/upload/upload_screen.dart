@@ -25,18 +25,23 @@ class _UploadScreenState extends State<UploadScreen> {
 
   File? _imageFile;
   String? _format;
+
+  /// ═══════════════════════════════════════════════
+  /// ✅ التعديل الجديد: القيمة الافتراضية = null
+  /// (تعني "غير مصنف" — والمستخدم يجب أن يختار)
+  /// ═══════════════════════════════════════════════
   String? _category;
+
   bool _isFree = false;
   bool _isTransparent = false;
 
   @override
   void initState() {
     super.initState();
+    // ✅ لا نختار تصنيفاً تلقائياً — المستخدم يجب أن يختار بنفسه
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final cats = context.read<CategoriesProvider>();
-      await cats.load();
-      if (mounted && cats.enabled.isNotEmpty) {
-        setState(() => _category = cats.enabled.first.key);
+      if (mounted) {
+        await context.read<CategoriesProvider>().load();
       }
     });
   }
@@ -53,7 +58,7 @@ class _UploadScreenState extends State<UploadScreen> {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
         source: source,
-        imageQuality: 100, // بدون ضغط من picker (نضغط بأنفسنا)
+        imageQuality: 100,
       );
       if (picked == null) return;
 
@@ -88,12 +93,24 @@ class _UploadScreenState extends State<UploadScreen> {
       return;
     }
 
-    // ─── التحقق من التصنيف (إجباري) ───
+    // ─── ✅ التحقق من التصنيف (إجباري — لا يقبل "غير مصنف") ───
     if (_category == null || _category!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(T.get(context, 'must_pick_category')),
+          content: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.white),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'الرجاء اختيار تصنيف للصورة قبل الرفع',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
           backgroundColor: AppTheme.warning,
+          duration: const Duration(seconds: 3),
         ),
       );
       return;
@@ -107,7 +124,6 @@ class _UploadScreenState extends State<UploadScreen> {
     try {
       await photos.uploadPhoto(
         file: _imageFile!,
-        // العنوان اختياري - نستخدم "بدون عنوان" إذا فاضي
         title: _titleController.text.trim().isEmpty
             ? 'بدون عنوان'
             : _titleController.text.trim(),
@@ -155,7 +171,6 @@ class _UploadScreenState extends State<UploadScreen> {
                 child: Container(
                   height: 240,
                   decoration: BoxDecoration(
-                    // نمط رقعة الشطرنج لعرض الشفافية
                     color: _isTransparent
                         ? null
                         : Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -189,7 +204,6 @@ class _UploadScreenState extends State<UploadScreen> {
                                 width: double.infinity,
                               ),
                             ),
-                            // ─── شارة "شفافة" ───
                             if (_isTransparent)
                               Positioned(
                                 top: 8,
@@ -266,13 +280,12 @@ class _UploadScreenState extends State<UploadScreen> {
                   helperText: 'اختياري - يُسمّى "بدون عنوان" إذا تركت فارغاً',
                   helperMaxLines: 2,
                 ),
-                // لا يوجد validator (اختياري)
               ),
 
               const SizedBox(height: 16),
 
               // ═══════════════════════════════════
-              // التصنيف (إجباري)
+              // التصنيف (إجباري — لا يقبل "غير مصنف")
               // ═══════════════════════════════════
               Consumer<CategoriesProvider>(
                 builder: (context, cats, _) {
@@ -329,41 +342,90 @@ class _UploadScreenState extends State<UploadScreen> {
                     );
                   }
 
-                  if (_category == null ||
-                      !categories.any((c) => c['key'] == _category)) {
+                  // ✅ حماية: إذا كانت القيمة الحالية غير موجودة في القائمة
+                  //    لا نختار تلقائياً — نُبقيها null لإجبار المستخدم
+                  final isValidSelection =
+                      _category != null &&
+                          categories.any((c) => c['key'] == _category);
+                  if (!isValidSelection && _category != null) {
                     WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) {
-                        setState(() => _category = categories.first['key']);
-                      }
+                      if (mounted) setState(() => _category = null);
                     });
                   }
 
-                  return DropdownButtonFormField<String>(
-                    initialValue: _category,
-                    decoration: InputDecoration(
-                      labelText: T.get(context, 'category'),
-                      prefixIcon: const Icon(Icons.category_outlined),
-                      helperText: 'إجباري',
-                      helperStyle: const TextStyle(
-                        color: AppTheme.error,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    items: categories
-                        .map(
-                          (c) => DropdownMenuItem(
-                            value: c['key'],
-                            child: Text(c['ar']!),
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue:
+                            isValidSelection ? _category : null,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: T.get(context, 'category'),
+                          prefixIcon: const Icon(Icons.category_outlined),
+                          hintText: 'غير مصنف — اختر تصنيفاً',
+                          hintStyle: TextStyle(
+                            color: AppTheme.warning.withValues(alpha: 0.9),
+                            fontWeight: FontWeight.bold,
                           ),
-                        )
-                        .toList(),
-                    onChanged: (v) => setState(() => _category = v),
-                    validator: (v) {
-                      if (v == null || v.isEmpty) {
-                        return T.get(context, 'must_pick_category');
-                      }
-                      return null;
-                    },
+                          helperText: '⚠️ إجباري — لن تتمكن من الرفع دون اختيار',
+                          helperStyle: const TextStyle(
+                            color: AppTheme.error,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                          enabledBorder: _category == null
+                              ? OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: AppTheme.warning
+                                        .withValues(alpha: 0.5),
+                                    width: 1.5,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        items: categories
+                            .map(
+                              (c) => DropdownMenuItem(
+                                value: c['key'],
+                                child: Text(c['ar']!),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) => setState(() => _category = v),
+                        validator: (v) {
+                          if (v == null || v.isEmpty) {
+                            return 'يجب اختيار تصنيف — لا يمكن النشر كـ "غير مصنف"';
+                          }
+                          return null;
+                        },
+                      ),
+                      if (_category == null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8, right: 4),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                size: 14,
+                                color: AppTheme.warning.withValues(alpha: 0.8),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'الرجاء اختيار تصنيف مناسب لصورتك',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppTheme.warning
+                                        .withValues(alpha: 0.9),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   );
                 },
               ),

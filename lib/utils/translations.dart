@@ -112,6 +112,158 @@ class T {
     'total_points': {'ar': 'إجمالي النقاط', 'en': 'Total Points'},
     'actions': {'ar': 'الإجراءات', 'en': 'Actions'},
     'manage_users': {'ar': 'إدارة المستخدمين', 'en': 'Manage Users'},
+
+    // ═══════════════════════════════════════
+    // 🎨 متجر الأيقونات (جديد)
+    // ═══════════════════════════════════════
+    'icon_store': {'ar': 'متجر الأيقونات', 'en': 'Icon Store'},
+    'icon_store_desc': {
+      'ar': 'ميّز اسمك بأيقونة حصرية',
+      'en': 'Stand out with an exclusive icon'
+    },
+    'manage_icons': {'ar': 'إدارة الأيقونات', 'en': 'Manage Icons'},
+    'manage_icons_desc': {
+      'ar': 'إضافة، تعديل، تسعير، تعطيل أيقونات المتجر',
+      'en': 'Add, edit, price, disable store icons'
+    },
+    'my_active_icon': {'ar': 'أيقونتي النشطة', 'en': 'My Active Icon'},
+    'no_icons_yet': {'ar': 'لا توجد أيقونات بعد', 'en': 'No icons yet'},
+    'no_icons_hint': {
+      'ar': 'عد قريباً، سيتم إضافة أيقونات جديدة',
+      'en': 'Check back soon, new icons are coming'
+    },
+    'icon_name': {'ar': 'اسم الأيقونة', 'en': 'Icon Name'},
+    'icon_description': {'ar': 'الوصف', 'en': 'Description'},
+    'icon_description_hint': {
+      'ar': 'وصف مختصر (اختياري)',
+      'en': 'Short description (optional)'
+    },
+    'icon_price': {'ar': 'السعر (نقاط)', 'en': 'Price (points)'},
+    'icon_duration': {'ar': 'المدة (يوم)', 'en': 'Duration (days)'},
+    'icon_order': {'ar': 'ترتيب الظهور', 'en': 'Display Order'},
+    'icon_order_hint': {
+      'ar': 'الأصغر يظهر أولاً',
+      'en': 'Smaller appears first'
+    },
+    'icon_image': {'ar': 'صورة الأيقونة', 'en': 'Icon Image'},
+    'icon_image_hint': {
+      'ar': 'PNG شفاف مُفضّل (512×512)',
+      'en': 'Transparent PNG preferred (512×512)'
+    },
+    'new_icon': {'ar': 'أيقونة جديدة', 'en': 'New Icon'},
+    'edit_icon': {'ar': 'تعديل أيقونة', 'en': 'Edit Icon'},
+    'create_icon': {'ar': 'إنشاء الأيقونة', 'en': 'Create Icon'},
+    'icon_created': {
+      'ar': 'تم إنشاء الأيقونة',
+      'en': 'Icon created successfully'
+    },
+    'icon_updated': {
+      'ar': 'تم تحديث الأيقونة',
+      'en': 'Icon updated successfully'
+    },
+    'icon_deleted': {
+      'ar': 'تم حذف الأيقونة',
+      'en': 'Icon deleted'
+    },
+    'icon_activate': {'ar': 'تفعيل', 'en': 'Activate'},
+    'icon_deactivate': {'ar': 'تعطيل', 'en': 'Deactivate'},
+    'icon_active': {'ar': 'فعّالة', 'en': 'Active'},
+    'icon_inactive': {'ar': 'معطّلة', 'en': 'Inactive'},
+    'icon_is_active': {'ar': 'الأيقونة فعّالة', 'en': 'Icon is active'},
+    'icon_is_active_hint': {
+      'ar': 'عند التعطيل، لن تظهر في المتجر',
+      'en': 'When disabled, it won\'t show in store'
+    },
+    'buy_icon': {'ar': 'شراء الأيقونة', 'en': 'Buy Icon'},
+    'purchase_icon': {'ar': 'شراء', 'en': 'Purchase'},
+    'purchase_confirm': {
+      'ar': 'هل تريد شراء هذه الأيقونة؟',
+      'en': 'Do you want to buy this icon?'
+    },
+    'purchase_success': {
+      'ar': 'تم شراء الأيقونة بنجاح',
+      'en': 'Icon purchased successfully'
+    },
+    'purchase_failed': {
+      'ar': 'فشل شراء الأيقونة',
+      'en': 'Failed to purchase icon'
+    },
+    'insufficient_points': {
+      'ar': 'رصيدك غير كافٍ',
+      'en': 'Insufficient points'
+    },
+    'already_own_icon': {
+      'ar': 'أنت تملك هذه الأيقونة بالفعل',
+      'en': 'You already own this icon'
+    },
+    'icon_not_available': {
+      'ar': 'هذه الأيقونة غير متاحة حالياً',
+      'en': 'This icon is not available'
+    },
+    'icon_expires_after': {
+      'ar': 'تنتهي الصلاحية بعد',
+      'en': 'Expires after'
+    },
+    'icon_days': {'ar': 'يوم', 'en': 'days'},
+    'icon_days_remaining': {
+      'ar': 'يوم متبقٍ',
+      'en': 'days remaining'
+    },
+    'icon_expiring_soon': {
+      'ar': 'ستنتهي قريباً',
+      'en': 'Expiring soon'
+    },
+    'icon_expired': {'ar': 'منتهية', 'en': 'Expired'},
+    'icon_valid_until': {
+      'ar': 'سارية حتى',
+      'en': 'Valid until'
+    },
+    'you_currently_have': {
+      'ar': 'لديك حالياً',
+      'en': 'You currently have'
+    },
+    'buy_now': {'ar': 'اشترِ الآن', 'en': 'Buy Now'},
+    'change_icon': {'ar': 'تغيير الأيقونة', 'en': 'Change Icon'},
+    'your_active_icon': {
+      'ar': 'أيقونتك الحالية',
+      'en': 'Your current icon'
+    },
+    'no_active_icon': {
+      'ar': 'لا تملك أيقونة نشطة',
+      'en': 'You don\'t have an active icon'
+    },
+    'no_active_icon_hint': {
+      'ar': 'اشترِ واحدة من المتجر لتظهر بجانب اسمك',
+      'en': 'Buy one from the store to show next to your name'
+    },
+    'cleanup_expired': {
+      'ar': 'تنظيف المنتهية',
+      'en': 'Clean expired'
+    },
+    'cleanup_success': {
+      'ar': 'تم تنظيف الأيقونات المنتهية',
+      'en': 'Expired icons cleaned'
+    },
+    'confirm_delete_icon': {
+      'ar': 'هل أنت متأكد من حذف هذه الأيقونة؟',
+      'en': 'Are you sure you want to delete this icon?'
+    },
+    'confirm_delete_icon_hint': {
+      'ar': 'لن يتمكن المستخدمون من رؤيتها في المتجر',
+      'en': 'Users won\'t see it in the store'
+    },
+    'image_required': {
+      'ar': 'يجب اختيار صورة للأيقونة',
+      'en': 'Please pick an icon image'
+    },
+    'points_balance': {
+      'ar': 'رصيدك الحالي',
+      'en': 'Your balance'
+    },
+    'icon_store_tagline': {
+      'ar': '🎨 ميّز اسمك بأيقونة حصرية',
+      'en': '🎨 Make your name stand out'
+    },
   };
 
   /// ترجمة مفتاح حسب اللغة الحالية (يتطلب context)

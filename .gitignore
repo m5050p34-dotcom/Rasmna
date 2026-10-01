@@ -42,3 +42,9 @@ Thumbs.db
 android/key.properties
 *.jks
 *.keystore
+
+# Backup files (لا ترفع أبداً)
+*.bak
+*.bak2
+*.bak3
+*.bak*

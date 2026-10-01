@@ -10,6 +10,7 @@ import '../screens/admin/admin_dashboard.dart';
 import '../screens/profile/favorites_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/profile/transactions_screen.dart';
+import '../screens/store/icon_store_screen.dart';
 import '../utils/app_theme.dart';
 import '../utils/translations.dart';
 import 'daily_reward_widget.dart';
@@ -38,10 +39,34 @@ class MainDrawer extends StatelessWidget {
                 padding: EdgeInsets.zero,
                 children: [
                   const Divider(height: 1),
-                  // ═══════════════════════════════════════════
-                  // ❌ تم حذف "رفع صورة" من القائمة الجانبية
-                  //    (لا يزال موجوداً كزر في AppBar الشاشة الرئيسية)
-                  // ═══════════════════════════════════════════
+
+                  // ═══════════════════════════════════
+                  // 🎨 متجر الأيقونات (جديد)
+                  // ═══════════════════════════════════
+                  _menuItem(
+                    context: context,
+                    icon: Icons.emoji_emotions,
+                    iconColor: const Color(0xFFFFB800),
+                    title: T.get(context, 'icon_store'),
+                    subtitle: T.get(context, 'icon_store_desc'),
+                    trailing: auth.hasActiveIcon
+                        ? const Icon(
+                            Icons.check_circle,
+                            color: AppTheme.success,
+                            size: 18,
+                          )
+                        : null,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const IconStoreScreen(),
+                        ),
+                      );
+                    },
+                  ),
+
                   _menuItem(
                     context: context,
                     icon: Icons.favorite,
