@@ -10,6 +10,7 @@ import '../screens/admin/admin_dashboard.dart';
 import '../screens/profile/favorites_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/profile/transactions_screen.dart';
+import '../screens/upload/upload_screen.dart';
 import '../utils/app_theme.dart';
 import '../utils/translations.dart';
 import 'daily_reward_widget.dart';
@@ -38,10 +39,20 @@ class MainDrawer extends StatelessWidget {
                 padding: EdgeInsets.zero,
                 children: [
                   const Divider(height: 1),
-                  // ═══════════════════════════════════════════
-                  // ❌ تم حذف "رفع صورة" من القائمة الجانبية
-                  //    (لا يزال موجوداً كزر في AppBar الشاشة الرئيسية)
-                  // ═══════════════════════════════════════════
+                  _menuItem(
+                    context: context,
+                    icon: Icons.add_photo_alternate_outlined,
+                    title: T.get(context, 'upload_photo'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const UploadScreen(),
+                        ),
+                      );
+                    },
+                  ),
                   _menuItem(
                     context: context,
                     icon: Icons.favorite,
