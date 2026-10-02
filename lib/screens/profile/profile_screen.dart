@@ -140,16 +140,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         // ═══════════════════════════════════
                         _buildNameWithIcon(context, profile),
 
-                        // ─── البريد ───
-                        Text(
-                          profile.email,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
-                          ),
-                          textDirection: TextDirection.ltr,
-                        ),
-
                         // ─── النبذة ───
                         if (profile.bio != null &&
                             profile.bio!.isNotEmpty) ...[

@@ -10,6 +10,7 @@ import '../screens/admin/admin_dashboard.dart';
 import '../screens/profile/favorites_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/profile/transactions_screen.dart';
+import '../screens/privacy/privacy_policy_screen.dart';
 import '../screens/store/icon_store_screen.dart';
 import '../utils/app_theme.dart';
 import '../utils/translations.dart';
@@ -81,6 +82,21 @@ class MainDrawer extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (_) => const FavoritesScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _menuItem(
+                    context: context,
+                    icon: Icons.privacy_tip_outlined,
+                    iconColor: AppTheme.primary,
+                    title: T.get(context, 'privacy_policy'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PrivacyPolicyScreen(),
                         ),
                       );
                     },
@@ -414,10 +430,17 @@ class MainDrawer extends StatelessWidget {
 
     if (confirm != true) return;
 
+    // 1) إغلاق الشريط أولاً
+    navigator.pop();
+
+    // 2) تنظيف الحالة المحلية
     favs.clear();
     notifs.clear();
+
+    // 3) تسجيل الخروج (بعد إغلاق الشريط)
     await auth.signOut();
-    navigator.pop();
+
+    // 4) رسالة النجاح
     messenger.showSnackBar(
       SnackBar(content: Text(T.tr('logout_success'))),
     );

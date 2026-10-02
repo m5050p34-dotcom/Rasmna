@@ -454,7 +454,6 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
   Widget build(BuildContext context) {
     final photo = widget.photo;
     final isFav = context.watch<FavoritesProvider>().isFavorited(photo.id);
-    final format = photo.format.isNotEmpty ? photo.format.toUpperCase() : 'JPG';
 
     return Scaffold(
       body: CustomScrollView(
@@ -681,56 +680,6 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 16),
-
-                  // ─── بطاقة السعر ───
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: photo.isFree
-                            ? [AppTheme.success, AppTheme.success]
-                            : [AppTheme.primary, AppTheme.secondary],
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          photo.isFree ? Icons.download : Icons.stars,
-                          color: Colors.white,
-                          size: 32,
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              photo.isFree
-                                  ? 'مجاني للتحميل'
-                                  : '${photo.price.toInt()} نقطة',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              _isTransparent
-                                  ? '$format • بدون خلفية (شفاف)'
-                                  : '$format • عالية الجودة',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-
                   const SizedBox(height: 20),
 
                   // ─── قسم الشراء/التحميل ───
@@ -742,6 +691,11 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
                     _purchasedSection()
                   else
                     _purchaseSection(),
+
+                  const SizedBox(height: 20),
+
+                  // ─── معلومات الصورة (التاريخ + السعر) ───
+                  _buildPhotoInfoCard(),
                 ],
               ),
             ),
@@ -749,6 +703,192 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
         ],
       ),
     );
+  }
+
+  // ═══════════════════════════════════════════════
+  // 📅 بطاقة المعلومات السفلية (تاريخ + سعر + صيغة)
+  // ═══════════════════════════════════════════════
+  Widget _buildPhotoInfoCard() {
+    final photo = widget.photo;
+    final format = photo.format.isNotEmpty
+        ? photo.format.toUpperCase()
+        : 'JPG';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
+            .withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppTheme.primary.withValues(alpha: 0.15),
+          width: 1.2,
+        ),
+      ),
+      child: Column(
+        children: [
+          // ─── الصف الأول: التاريخ ───
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.calendar_today,
+                  color: AppTheme.primary,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'تاريخ النشر',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _formatDate(photo.createdAt),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+          Divider(
+            height: 1,
+            color: AppTheme.primary.withValues(alpha: 0.1),
+          ),
+          const SizedBox(height: 14),
+
+          // ─── الصف الثاني: الصيغة + السعر ───
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.secondary.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.image_outlined,
+                  color: AppTheme.secondary,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'الصيغة',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _isTransparent
+                        ? '$format • شفاف'
+                        : '$format • عالية الجودة',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+
+              // ─── السعر ───
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: photo.isFree
+                        ? [AppTheme.success, AppTheme.success]
+                        : [AppTheme.primary, AppTheme.secondary],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (photo.isFree
+                              ? AppTheme.success
+                              : AppTheme.primary)
+                          .withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      photo.isFree
+                          ? Icons.download_done
+                          : Icons.stars,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      photo.isFree
+                          ? 'مجاني'
+                          : '${photo.price.toInt()} نقطة',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════
+  // 📅 تنسيق التاريخ بالعربية
+  // ═══════════════════════════════════════════════
+  String _formatDate(DateTime dt) {
+    const months = [
+      'يناير',
+      'فبراير',
+      'مارس',
+      'أبريل',
+      'مايو',
+      'يونيو',
+      'يوليو',
+      'أغسطس',
+      'سبتمبر',
+      'أكتوبر',
+      'نوفمبر',
+      'ديسمبر',
+    ];
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
   }
 
   Widget _ownerSection() {

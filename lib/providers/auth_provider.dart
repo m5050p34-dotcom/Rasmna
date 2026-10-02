@@ -23,9 +23,6 @@ class AuthProvider extends ChangeNotifier {
   String? get error => _error;
   String? get userId => _authService.currentUserId;
 
-  // ═══════════════════════════════════════════════
-  // ✅ جديد: getters الآيقونة النشطة
-  // ═══════════════════════════════════════════════
   String? get activeIconUrl => _profile?.activeIconUrl;
   bool get hasActiveIcon => _profile?.hasActiveIcon ?? false;
   int get activeIconDaysRemaining =>
@@ -53,6 +50,7 @@ class AuthProvider extends ChangeNotifier {
       } else {
         _profile = null;
         _isLoading = false;
+        _error = null;
         ScreenSecurityService.blockScreenshots();
         notifyListeners();
       }
@@ -108,10 +106,27 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // ═══════════════════════════════════════════════
+  // ✅ signOut مُحصّن ضد الأخطاء
+  // ═══════════════════════════════════════════════
   Future<void> signOut() async {
-    await _authService.signOut();
+    try {
+      await _authService.signOut();
+    } catch (e) {
+      debugPrint('⚠️ signOut error: $e');
+    }
+
+    // إعادة ضبط كامل
     _profile = null;
-    await ScreenSecurityService.blockScreenshots();
+    _isLoading = false;
+    _error = null;
+
+    try {
+      await ScreenSecurityService.blockScreenshots();
+    } catch (e) {
+      debugPrint('⚠️ blockScreenshots error: $e');
+    }
+
     notifyListeners();
   }
 
@@ -124,22 +139,13 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // ═══════════════════════════════════════════════
-  // ✅ جديد: تحديث البروفايل بعد شراء أيقونة
-  //    (نفس refreshProfile لكن مع اسم أوضح للاستخدام)
-  // ═══════════════════════════════════════════════
   Future<void> refreshAfterPurchase() async {
     await refreshProfile();
   }
 
-  // ═══════════════════════════════════════════════
-  // ✅ جديد: إزالة الأيقونة المنتهية محلياً
-  //    (يُستدعى عند فتح التطبيق أو من شاشة المتجر)
-  // ═══════════════════════════════════════════════
   void clearExpiredIconLocally() {
     if (_profile == null) return;
     if (_profile!.activeIconUrl == null) return;
-    // إذا الأيقونة منتهية، نمسحها محلياً
     if (!_profile!.hasActiveIcon) {
       _profile = _profile!.copyWith(clearActiveIcon: true);
       notifyListeners();
