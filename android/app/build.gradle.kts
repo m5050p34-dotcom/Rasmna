@@ -20,7 +20,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.rasmna.rasmna"
+        applicationId = "com.rasmna.app"
         minSdk = 23
         targetSdk = 34
         versionCode = 1
