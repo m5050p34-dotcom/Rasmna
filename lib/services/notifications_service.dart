@@ -1,20 +1,17 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../models/notification_model.dart';
 
 class NotificationsService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  // ═══════════════════════════════════════════════
-  // جلب الإشعارات
-  // ═══════════════════════════════════════════════
   Future<List<NotificationModel>> getMyNotifications({int limit = 50}) async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) {
       debugPrint('⚠️ getMyNotifications: no user');
       return [];
     }
-
     try {
       final response = await _supabase
           .from('notifications')
@@ -22,7 +19,6 @@ class NotificationsService {
           .eq('user_id', userId)
           .order('created_at', ascending: false)
           .limit(limit);
-
       final list = response as List;
       debugPrint('📬 Loaded ${list.length} notifications');
       return list
@@ -37,7 +33,6 @@ class NotificationsService {
   Future<int> getUnreadCount() async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return 0;
-
     try {
       final response = await _supabase
           .from('notifications')
@@ -72,8 +67,15 @@ class NotificationsService {
   }
 
   // ═══════════════════════════════════════════════
-  // إرسال إشعار (عبر RPC)
+  // 🗑️ حذف جميع الإشعارات للمستخدم الحالي
   // ═══════════════════════════════════════════════
+  Future<void> deleteAllNotifications() async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+    await _supabase.from('notifications').delete().eq('user_id', userId);
+    debugPrint('🗑️ All notifications deleted for user $userId');
+  }
+
   Future<void> sendNotification({
     required String userId,
     required String type,
@@ -95,9 +97,6 @@ class NotificationsService {
     }
   }
 
-  // ═══════════════════════════════════════════════
-  // إرسال إشعار جماعي (للأدمن)
-  // ═══════════════════════════════════════════════
   Future<int> adminSendNotification({
     required String title,
     required String body,
@@ -111,9 +110,6 @@ class NotificationsService {
     return (response as num).toInt();
   }
 
-  // ═══════════════════════════════════════════════
-  // إرسال إشعار لمستخدم محدد (للأدمن)
-  // ═══════════════════════════════════════════════
   Future<void> adminSendNotificationToUser({
     required String userId,
     required String title,
@@ -126,9 +122,6 @@ class NotificationsService {
     });
   }
 
-  // ═══════════════════════════════════════════════
-  // Realtime Stream
-  // ═══════════════════════════════════════════════
   Stream<List<Map<String, dynamic>>> streamMyNotifications() {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return const Stream.empty();

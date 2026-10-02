@@ -67,21 +67,109 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  // ═══════════════════════════════════════════════
+  // 🗑️ تأكيد حذف جميع الإشعارات
+  // ═══════════════════════════════════════════════
+  Future<void> _confirmDeleteAll() async {
+    final provider = context.read<NotificationsProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.error.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.delete_sweep,
+                  color: AppTheme.error, size: 22),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'حذف جميع الإشعارات',
+                style: TextStyle(fontSize: 16),
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'هل تريد حذف جميع الإشعارات نهائياً؟\n'
+          'لا يمكن التراجع عن هذا الإجراء.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.delete_forever, size: 18),
+            label: const Text('حذف الكل'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await provider.deleteAll();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('تم حذف جميع الإشعارات'),
+          backgroundColor: AppTheme.success,
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(Helpers.errorMessage(e)),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('الإشعارات'),
         actions: [
+          // ─── زر "قراءة الكل" ───
           Consumer<NotificationsProvider>(
             builder: (context, provider, _) {
               if (provider.unreadCount == 0) {
                 return const SizedBox.shrink();
               }
-              return TextButton.icon(
+              return IconButton(
+                icon: const Icon(Icons.done_all),
+                tooltip: 'قراءة الكل',
                 onPressed: () => provider.markAllAsRead(),
-                icon: const Icon(Icons.done_all, size: 18),
-                label: const Text('قراءة الكل'),
+              );
+            },
+          ),
+          // ─── 🗑️ زر حذف الكل ───
+          Consumer<NotificationsProvider>(
+            builder: (context, provider, _) {
+              if (provider.notifications.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return IconButton(
+                icon: const Icon(Icons.delete_sweep),
+                tooltip: 'حذف جميع الإشعارات',
+                onPressed: _confirmDeleteAll,
               );
             },
           ),
@@ -120,13 +208,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             );
           }
 
+          final sorted = provider.sortedNotifications;
+
           return RefreshIndicator(
             onRefresh: () => provider.loadAll(),
             child: ListView.builder(
               padding: const EdgeInsets.all(8),
-              itemCount: provider.notifications.length,
+              itemCount: sorted.length,
               itemBuilder: (context, index) {
-                final n = provider.notifications[index];
+                final n = sorted[index];
                 final color = _colorFor(n.type);
                 return Dismissible(
                   key: Key(n.id),
@@ -144,7 +234,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   child: Card(
                     margin: const EdgeInsets.symmetric(
                         vertical: 4, horizontal: 0),
-                    color: n.isRead ? null : color.withValues(alpha: 0.08),
+                    color: n.isRead
+                        ? null
+                        : color.withValues(alpha: 0.08),
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -156,7 +248,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           color: color.withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(_iconFor(n.type), color: color, size: 22),
+                        child: Icon(_iconFor(n.type),
+                            color: color, size: 22),
                       ),
                       title: Row(
                         children: [
@@ -218,8 +311,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) =>
-              PhotographerScreen(userId: n.data!['follower_id'] as String),
+          builder: (_) => PhotographerScreen(
+            userId: n.data!['follower_id'] as String,
+          ),
         ),
       );
     }

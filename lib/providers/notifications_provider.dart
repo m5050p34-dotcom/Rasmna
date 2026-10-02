@@ -23,14 +23,22 @@ class NotificationsProvider extends ChangeNotifier {
   bool get hasUnread => _unreadCount > 0;
 
   // ═══════════════════════════════════════════════
-  // تحميل الإشعارات
+  // ✅ قائمة مرتبة: غير المقروء أولاً، ثم المقروء
+  //    (كلاهما من الأحدث للأقدم)
   // ═══════════════════════════════════════════════
+  List<NotificationModel> get sortedNotifications {
+    final unread = _notifications.where((n) => !n.isRead).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final read = _notifications.where((n) => n.isRead).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return [...unread, ...read];
+  }
+
   Future<void> loadAll({bool silent = false}) async {
     if (!silent) {
       _isLoading = true;
       notifyListeners();
     }
-
     try {
       final results = await Future.wait([
         _service.getMyNotifications(),
@@ -39,11 +47,9 @@ class NotificationsProvider extends ChangeNotifier {
       _notifications = results[0] as List<NotificationModel>;
       _unreadCount = results[1] as int;
       _error = null;
-
       for (final n in _notifications) {
         _seenIds.add(n.id);
       }
-
       debugPrint('📬 Loaded: ${_notifications.length} (unread: $_unreadCount)');
     } catch (e) {
       _error = e.toString();
@@ -54,26 +60,20 @@ class NotificationsProvider extends ChangeNotifier {
     }
   }
 
-  // ═══════════════════════════════════════════════
-  // 🔔 Realtime subscription
-  // ═══════════════════════════════════════════════
   void subscribeRealtime() {
     if (_subscribed) {
       debugPrint('🔔 Already subscribed - skipping');
       return;
     }
     _subscribed = true;
-
     debugPrint('🔔 Subscribing to notifications realtime...');
 
     _subscription?.cancel();
     _subscription = _service.streamMyNotifications().listen(
       (list) {
         debugPrint('🔔 Realtime fired: ${list.length} notifications');
-
-        final newNotifications = list
-            .map((json) => NotificationModel.fromJson(json))
-            .toList();
+        final newNotifications =
+            list.map((json) => NotificationModel.fromJson(json)).toList();
 
         final freshOnes = <NotificationModel>[];
         for (final n in newNotifications) {
@@ -100,9 +100,6 @@ class NotificationsProvider extends ChangeNotifier {
     );
   }
 
-  // ═══════════════════════════════════════════════
-  // ✅ إعادة الاتصال (عند العودة للتطبيق)
-  // ═══════════════════════════════════════════════
   Future<void> reconnect() async {
     debugPrint('🔌 Reconnecting notifications realtime...');
     _subscription?.cancel();
@@ -111,9 +108,6 @@ class NotificationsProvider extends ChangeNotifier {
     subscribeRealtime();
   }
 
-  // ═══════════════════════════════════════════════
-  // 📢 إظهار إشعار النظام
-  // ═══════════════════════════════════════════════
   void _showSystemNotification(NotificationModel n) {
     LocalNotificationsService.show(
       title: n.title,
@@ -122,22 +116,20 @@ class NotificationsProvider extends ChangeNotifier {
     );
   }
 
-  // ═══════════════════════════════════════════════
-  // ✅ تسجيل كمقروء
-  // ═══════════════════════════════════════════════
   Future<void> markAsRead(String id) async {
     await _service.markAsRead(id);
     final idx = _notifications.indexWhere((n) => n.id == id);
     if (idx != -1 && !_notifications[idx].isRead) {
+      final old = _notifications[idx];
       _notifications[idx] = NotificationModel(
-        id: _notifications[idx].id,
-        userId: _notifications[idx].userId,
-        type: _notifications[idx].type,
-        title: _notifications[idx].title,
-        body: _notifications[idx].body,
-        data: _notifications[idx].data,
+        id: old.id,
+        userId: old.userId,
+        type: old.type,
+        title: old.title,
+        body: old.body,
+        data: old.data,
         isRead: true,
-        createdAt: _notifications[idx].createdAt,
+        createdAt: old.createdAt,
       );
       _unreadCount = (_unreadCount - 1).clamp(0, 999);
       notifyListeners();
@@ -172,8 +164,16 @@ class NotificationsProvider extends ChangeNotifier {
   }
 
   // ═══════════════════════════════════════════════
-  // للأدمن
+  // 🗑️ حذف جميع الإشعارات
   // ═══════════════════════════════════════════════
+  Future<void> deleteAll() async {
+    await _service.deleteAllNotifications();
+    _notifications = [];
+    _unreadCount = 0;
+    _seenIds.clear();
+    notifyListeners();
+  }
+
   Future<int> adminSend({
     required String title,
     required String body,
