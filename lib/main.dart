@@ -18,6 +18,7 @@ import 'providers/sort_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/user_provider.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/banned/banned_screen.dart';
 import 'screens/home/marketplace_screen.dart';
 import 'screens/onboarding/permissions_screen.dart';
 import 'services/ads_service.dart';
@@ -202,6 +203,9 @@ class _RasmnaAppState extends State<RasmnaApp> with WidgetsBindingObserver {
   }
 }
 
+// ═══════════════════════════════════════════════════════════
+// 🔐 بوابة الدخول: توجّه المستخدم حسب حالته
+// ═══════════════════════════════════════════════════════════
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
@@ -209,12 +213,24 @@ class AuthGate extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
+        // 1) جارٍ التحميل
         if (auth.isLoading) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        if (auth.isAuthenticated) return const MarketplaceScreen();
+
+        // 2) مصادقة
+        if (auth.isAuthenticated) {
+          // 🚫 إذا كان محظوراً → شاشة الحجب الكاملة
+          if (auth.isBanned) {
+            return const BannedScreen();
+          }
+          // ✅ مستخدم سليم → السوق
+          return const MarketplaceScreen();
+        }
+
+        // 3) غير مصادق
         return const LoginScreen();
       },
     );

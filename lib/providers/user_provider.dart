@@ -38,8 +38,13 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> setBanned(String userId, bool banned) async {
-    await _service.setBanned(userId, banned);
+  /// 🚫 حظر / إلغاء حظر (مع دعم السبب)
+  Future<void> setBanned(
+    String userId,
+    bool banned, {
+    String? reason,
+  }) async {
+    await _service.setBanned(userId, banned, reason: reason);
     await _fetchSilently();
   }
 

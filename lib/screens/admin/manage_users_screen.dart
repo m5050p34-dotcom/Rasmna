@@ -326,6 +326,47 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   ],
                 ),
               ),
+
+            if (user.isBanned &&
+                user.banReason != null &&
+                user.banReason!.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.error.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppTheme.error.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.info_outline,
+                        color: AppTheme.error, size: 16),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'سبب الحظر:',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.error,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(user.banReason!,
+                              style: const TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ),
@@ -415,30 +456,49 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         final messenger = ScaffoldMessenger.of(context);
         final wasBanned = user.isBanned;
 
-        final confirm = await _confirm(
-          title: wasBanned ? 'إلغاء الحظر' : 'حظر المستخدم',
-          message: wasBanned
-              ? 'هل تريد إلغاء حظر ${user.username}؟'
-              : 'هل تريد حظر ${user.username}؟',
-        );
-
-        if (confirm != true) return;
-
-        try {
-          await provider.setBanned(user.id, !wasBanned);
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text(wasBanned ? 'تم إلغاء الحظر' : 'تم حظر المستخدم'),
-              backgroundColor: AppTheme.success,
-            ),
+        if (wasBanned) {
+          final confirm = await _confirm(
+            title: 'إلغاء الحظر',
+            message: 'تأكيد إلغاء حظر ${user.username}؟',
           );
-        } catch (e) {
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text(Helpers.errorMessage(e)),
-              backgroundColor: AppTheme.error,
-            ),
-          );
+          if (confirm != true) return;
+
+          try {
+            await provider.setBanned(user.id, false);
+            messenger.showSnackBar(
+              const SnackBar(
+                content: Text('تم إلغاء الحظر'),
+                backgroundColor: AppTheme.success,
+              ),
+            );
+          } catch (e) {
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(Helpers.errorMessage(e)),
+                backgroundColor: AppTheme.error,
+              ),
+            );
+          }
+        } else {
+          final reason = await _showBanReasonDialog(user);
+          if (reason == null) return;
+
+          try {
+            await provider.setBanned(user.id, true, reason: reason);
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text('تم حظر ${user.username}'),
+                backgroundColor: AppTheme.success,
+              ),
+            );
+          } catch (e) {
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(Helpers.errorMessage(e)),
+                backgroundColor: AppTheme.error,
+              ),
+            );
+          }
         }
         break;
 
@@ -1411,6 +1471,115 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         ),
       );
     }
+  }
+
+  Future<String?> _showBanReasonDialog(ProfileModel user) async {
+    final reasonController = TextEditingController();
+    final messenger = ScaffoldMessenger.of(context);
+
+    final quickReasons = <String>[
+      'سبب 1',
+      'سبب 2',
+      'سبب 3',
+    ];
+
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.error.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.block,
+                  color: AppTheme.error, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('حظر المستخدم',
+                      style: TextStyle(fontSize: 16)),
+                  Text(
+                    user.username,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(dialogContext).disabledColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 6),
+              TextField(
+                controller: reasonController,
+                maxLines: 3,
+                maxLength: 200,
+                decoration: const InputDecoration(
+                  labelText: 'السبب',
+                  prefixIcon: Icon(Icons.notes),
+                  alignLabelWithHint: true,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: quickReasons
+                    .map((r) => ActionChip(
+                          label: Text(r,
+                              style: const TextStyle(fontSize: 11)),
+                          onPressed: () {
+                            reasonController.text = r;
+                          },
+                        ))
+                    .toList(),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.error),
+            onPressed: () {
+              final reason = reasonController.text.trim();
+              if (reason.isEmpty) {
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('أدخل السبب'),
+                    backgroundColor: AppTheme.error,
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(dialogContext, reason);
+            },
+            icon: const Icon(Icons.block, size: 18),
+            label: const Text('حظر'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<bool?> _confirm({

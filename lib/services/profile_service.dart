@@ -174,10 +174,50 @@ class ProfileService {
     );
   }
 
-  Future<void> setBanned(String userId, bool banned) async {
-    await _supabase
-        .from('profiles')
-        .update({'is_banned': banned}).eq('id', userId);
+  // ═══════════════════════════════════════════════
+  // 🚫 حظر مستخدم (مع السبب)
+  // ═══════════════════════════════════════════════
+  Future<void> setBanned(String userId, bool banned, {String? reason}) async {
+    if (banned) {
+      final r = reason?.trim() ?? '';
+      if (r.isEmpty) {
+        throw Exception('يجب إدخال سبب الحظر');
+      }
+
+      try {
+        await _supabase.rpc(
+          'ban_user',
+          params: {
+            'p_user_id': userId,
+            'p_reason': r,
+          },
+        );
+      } on PostgrestException catch (e) {
+        final msg = e.message;
+        if (msg.contains('Cannot ban yourself')) {
+          throw Exception('لا يمكنك حظر نفسك');
+        }
+        if (msg.contains('Admin only')) {
+          throw Exception('هذه العملية للأدمن فقط');
+        }
+        if (msg.contains('User not found')) {
+          throw Exception('المستخدم غير موجود');
+        }
+        rethrow;
+      }
+    } else {
+      try {
+        await _supabase.rpc(
+          'unban_user',
+          params: {'p_user_id': userId},
+        );
+      } on PostgrestException catch (e) {
+        if (e.message.contains('Admin only')) {
+          throw Exception('هذه العملية للأدمن فقط');
+        }
+        rethrow;
+      }
+    }
   }
 
   Future<void> setAdmin(String userId, bool isAdmin) async {

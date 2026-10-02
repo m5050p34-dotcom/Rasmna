@@ -18,6 +18,13 @@ class ProfileModel {
   final String? activeIconUrl;
   final DateTime? activeIconExpiresAt;
 
+  // ═══════════════════════════════════════════════
+  // 🚫 حقول الحظر
+  // ═══════════════════════════════════════════════
+  final String? banReason;
+  final DateTime? bannedAt;
+  final String? bannedBy;
+
   ProfileModel({
     required this.id,
     required this.username,
@@ -33,6 +40,9 @@ class ProfileModel {
     this.activeIconId,
     this.activeIconUrl,
     this.activeIconExpiresAt,
+    this.banReason,
+    this.bannedAt,
+    this.bannedBy,
   });
 
   factory ProfileModel.fromJson(Map<String, dynamic> json) {
@@ -57,6 +67,11 @@ class ProfileModel {
       activeIconExpiresAt: json['active_icon_expires_at'] != null
           ? DateTime.tryParse(json['active_icon_expires_at'] as String)
           : null,
+      banReason: json['ban_reason'] as String?,
+      bannedAt: json['banned_at'] != null
+          ? DateTime.tryParse(json['banned_at'] as String)
+          : null,
+      bannedBy: json['banned_by'] as String?,
     );
   }
 
@@ -75,6 +90,9 @@ class ProfileModel {
         'active_icon_id': activeIconId,
         'active_icon_url': activeIconUrl,
         'active_icon_expires_at': activeIconExpiresAt?.toIso8601String(),
+        'ban_reason': banReason,
+        'banned_at': bannedAt?.toIso8601String(),
+        'banned_by': bannedBy,
       };
 
   ProfileModel copyWith({
@@ -91,6 +109,10 @@ class ProfileModel {
     String? activeIconUrl,
     DateTime? activeIconExpiresAt,
     bool clearActiveIcon = false,
+    String? banReason,
+    DateTime? bannedAt,
+    String? bannedBy,
+    bool clearBanInfo = false,
   }) {
     return ProfileModel(
       id: id,
@@ -111,6 +133,9 @@ class ProfileModel {
       activeIconExpiresAt: clearActiveIcon
           ? null
           : (activeIconExpiresAt ?? this.activeIconExpiresAt),
+      banReason: clearBanInfo ? null : (banReason ?? this.banReason),
+      bannedAt: clearBanInfo ? null : (bannedAt ?? this.bannedAt),
+      bannedBy: clearBanInfo ? null : (bannedBy ?? this.bannedBy),
     );
   }
 
