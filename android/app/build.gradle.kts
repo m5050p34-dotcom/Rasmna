@@ -1,4 +1,15 @@
+import java.util.Properties
+import java.io.FileInputStream
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+// ═══════════════════════════════════════════════
+// قراءة key.properties
+// ═══════════════════════════════════════════════
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
 
 plugins {
     id("com.android.application")
@@ -9,8 +20,6 @@ plugins {
 android {
     namespace = "com.rasmna.rasmna"
     compileSdk = 36
-
-    // ✅ NDK 28.2 (مطلوب من jni + flutter_local_notifications)
     ndkVersion = "28.2.13676358"
 
     compileOptions {
@@ -20,23 +29,42 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.rasmna.app"
+        applicationId = "com.rasmna.mobile"
         minSdk = 23
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
         multiDexEnabled = true
+    }
+
+    // ═══════════════════════════════════════════════
+    // ✅ signingConfigs الحقيقي (يقفز إلى release عند وجود key.properties)
+    // ═══════════════════════════════════════════════
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = keystoreProperties["storeFile"]?.let { file(it) }
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            // ✅ إذا كان key.properties موجوداً → استخدم release
+            // ⚠️ وإلا → fallback إلى debug (فقط للتطوير المحلي)
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = false
             isShrinkResources = false
         }
     }
 
-    // ✅ CMake
     externalNativeBuild {
         cmake {
             version = "3.22.1"
@@ -55,6 +83,5 @@ flutter {
 }
 
 dependencies {
-    // ✅ Core Library Desugaring (مطلوب من flutter_local_notifications)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
