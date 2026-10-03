@@ -10,62 +10,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ─────────────────────────────────────────
-      # 1️⃣ جلب الكود
-      # ─────────────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ─────────────────────────────────────────
-      # 2️⃣ إعداد Java 17 (Zulu)
-      # ─────────────────────────────────────────
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      # ─────────────────────────────────────────
-      # 3️⃣ إعداد Flutter (أحدث إصدار Stable)
-      #     ⚠️ لا نحدد إصداراً → يحصل على Dart 3.10+
-      # ─────────────────────────────────────────
       - name: Setup Flutter (latest stable)
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
-      # ─────────────────────────────────────────
-      # 4️⃣ عرض الإصدارات (للتشخيص)
-      # ─────────────────────────────────────────
-      - name: Show Flutter & Dart versions
-        run: |
-          flutter --version
-          dart --version
-
-      # ─────────────────────────────────────────
-      # 5️⃣ تثبيت CMake + NDK 28.2
-      # ─────────────────────────────────────────
       - name: Install Android SDK Components
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "cmake;3.22.1" || true
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;28.2.13676358" || true
-          ls $ANDROID_HOME/cmake/ || true
-          ls $ANDROID_HOME/ndk/ || true
 
-      # ─────────────────────────────────────────
-      # 6️⃣ فك تشفير الـ Keystore
-      # ─────────────────────────────────────────
       - name: Decode Keystore
         run: |
           mkdir -p android/app
-          echo "${{ secrets.KEYSTORE_FILE }}" | base64 --decode > android/app/rasmna-upload.jks
+          printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | tr -d '\n\r ' | base64 --decode > android/app/rasmna-upload.jks
           ls -lh android/app/rasmna-upload.jks
+          file android/app/rasmna-upload.jks || true
+          SIZE=$(stat -c%s android/app/rasmna-upload.jks)
+          if [ "$SIZE" -lt 1000 ]; then
+            echo "❌ Keystore too small ($SIZE bytes) — Secret corrupted!"
+            exit 1
+          fi
+          echo "✅ Keystore size: $SIZE bytes"
 
-      # ─────────────────────────────────────────
-      # 7️⃣ إنشاء key.properties
-      # ─────────────────────────────────────────
       - name: Create key.properties
         run: |
           cat > android/key.properties << EOF
@@ -76,9 +54,6 @@ jobs:
           EOF
           echo "✅ key.properties created"
 
-      # ─────────────────────────────────────────
-      # 8️⃣ تنظيف الـ caches القديمة
-      # ─────────────────────────────────────────
       - name: Clean old caches
         run: |
           rm -rf ~/.gradle/caches/
@@ -88,29 +63,17 @@ jobs:
           rm -rf build/
           rm -rf .dart_tool/
 
-      # ─────────────────────────────────────────
-      # 9️⃣ جلب اعتماديات Flutter
-      # ─────────────────────────────────────────
       - name: Get dependencies
         run: flutter pub get
 
-      # ─────────────────────────────────────────
-      # 🔟 بناء APK موقّع (تطبيق واحد عالمي)
-      # ─────────────────────────────────────────
       - name: Build Signed Universal APK
         run: flutter build apk --release
 
-      # ─────────────────────────────────────────
-      # 1️⃣1️⃣ التحقق من وجود APK
-      # ─────────────────────────────────────────
       - name: Verify APK exists
         run: |
           ls -lh build/app/outputs/flutter-apk/
           test -f build/app/outputs/flutter-apk/app-release.apk && echo "✅ APK built successfully"
 
-      # ─────────────────────────────────────────
-      # 1️⃣2️⃣ رفع APK
-      # ─────────────────────────────────────────
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
