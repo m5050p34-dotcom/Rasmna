@@ -44,11 +44,20 @@ jobs:
           fi
           echo "✅ Keystore size: $SIZE bytes"
 
-      - name: List keystore aliases (diagnostic)
+      # ═══════════════════════════════════════════════
+      # 🔍 خطوة تشخيصية: عرض الـ aliases المتوفرة
+      # ═══════════════════════════════════════════════
+      - name: List keystore aliases (DIAGNOSTIC)
         run: |
-          echo "═══════ Aliases in keystore ═══════"
-          keytool -list -keystore android/app/rasmna-upload.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" 2>&1 || true
-          echo "═══════ Done ═══════"
+          echo "═══════════════════════════════════════"
+          echo "🔍 Available aliases in keystore:"
+          echo "═══════════════════════════════════════"
+          keytool -list -keystore android/app/rasmna-upload.jks \
+            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" 2>&1 || true
+          echo "═══════════════════════════════════════"
+          echo "🔑 KEY_ALIAS value from secrets:"
+          echo "${{ secrets.KEY_ALIAS }}"
+          echo "═══════════════════════════════════════"
 
       - name: Create key.properties
         run: |
