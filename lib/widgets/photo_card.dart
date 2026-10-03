@@ -114,26 +114,6 @@ class PhotoCard extends StatelessWidget {
                       ),
                     ),
 
-                    // ─── تدرج سفلي خفيف لتحسين القراءة ───
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      height: 40,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withValues(alpha: 0.15),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
                     // ─── شارة PNG (يمين أعلى) ───
                     if (_isTransparent)
                       Positioned(
@@ -172,61 +152,6 @@ class PhotoCard extends StatelessWidget {
                           ),
                         ),
                       ),
-
-                    // ─── زر القلب (يسار أعلى) ───
-                    if (showFavoriteButton)
-                      Positioned(
-                        top: 10,
-                        left: 10,
-                        child: Selector<FavoritesProvider, bool>(
-                          selector: (_, favs) => favs.isFavorited(photo.id),
-                          builder: (context, isFav, _) {
-                            return GestureDetector(
-                              onTap: () async {
-                                try {
-                                  final favs =
-                                      context.read<FavoritesProvider>();
-                                  await favs.toggleFavorite(photo.id);
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context)
-                                        .showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          isFav
-                                              ? 'أُزيلت من المفضلة'
-                                              : 'أُضيفت إلى المفضلة ❤️',
-                                        ),
-                                        duration: const Duration(
-                                            milliseconds: 900),
-                                        backgroundColor: isFav
-                                            ? Colors.grey.shade700
-                                            : AppTheme.secondary,
-                                      ),
-                                    );
-                                  }
-                                } catch (_) {}
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color:
-                                      Colors.black.withValues(alpha: 0.45),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  isFav
-                                      ? Icons.favorite
-                                      : Icons.favorite_border,
-                                  color: isFav
-                                      ? AppTheme.secondary
-                                      : Colors.white,
-                                  size: 18,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -259,7 +184,6 @@ class PhotoCard extends StatelessWidget {
                       // ─── الصف الثاني: صورة المستخدم + الاسم ───
                       Row(
                         children: [
-                          // ✅ صورة المستخدم (Avatar)
                           Container(
                             width: 20,
                             height: 20,
@@ -282,8 +206,7 @@ class PhotoCard extends StatelessWidget {
                             child: ClipOval(
                               child: hasAvatar
                                   ? CachedNetworkImage(
-                                      imageUrl:
-                                          photo.owner!.avatarUrl!,
+                                      imageUrl: photo.owner!.avatarUrl!,
                                       fit: BoxFit.cover,
                                       placeholder: (_, __) =>
                                           _avatarInitial(isDark),
@@ -312,11 +235,11 @@ class PhotoCard extends StatelessWidget {
                       ),
 
                       // ═══════════════════════════════════
-                      // الصف الثالث: السعر (في الأسفل)
+                      // الصف الثالث: السعر + زر القلب
                       // ═══════════════════════════════════
                       Row(
                         children: [
-                          // ✅ شارة السعر الجديدة
+                          // ─── شارة السعر ───
                           Expanded(
                             child: Container(
                               padding: const EdgeInsets.symmetric(
@@ -374,6 +297,76 @@ class PhotoCard extends StatelessWidget {
                               ),
                             ),
                           ),
+
+                          // ─── ❤️ زر المفضلة (بجانب السعر) ───
+                          if (showFavoriteButton) ...[
+                            const SizedBox(width: 6),
+                            Selector<FavoritesProvider, bool>(
+                              selector: (_, favs) =>
+                                  favs.isFavorited(photo.id),
+                              builder: (context, isFav, _) {
+                                return GestureDetector(
+                                  onTap: () async {
+                                    try {
+                                      final favs = context
+                                          .read<FavoritesProvider>();
+                                      await favs.toggleFavorite(photo.id);
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              isFav
+                                                  ? 'أُزيلت من المفضلة'
+                                                  : 'أُضيفت إلى المفضلة ❤️',
+                                            ),
+                                            duration: const Duration(
+                                                milliseconds: 900),
+                                            backgroundColor: isFav
+                                                ? Colors.grey.shade700
+                                                : AppTheme.secondary,
+                                          ),
+                                        );
+                                      }
+                                    } catch (_) {}
+                                  },
+                                  child: Container(
+                                    width: 30,
+                                    height: 30,
+                                    decoration: BoxDecoration(
+                                      color: isFav
+                                          ? AppTheme.secondary
+                                              .withValues(alpha: 0.15)
+                                          : (isDark
+                                              ? Colors.white
+                                                  .withValues(alpha: 0.08)
+                                              : Colors.grey
+                                                  .withValues(alpha: 0.12)),
+                                      borderRadius:
+                                          BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: isFav
+                                            ? AppTheme.secondary
+                                            : Colors.transparent,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    child: Icon(
+                                      isFav
+                                          ? Icons.favorite
+                                          : Icons.favorite_border,
+                                      color: isFav
+                                          ? AppTheme.secondary
+                                          : (isDark
+                                              ? Colors.white70
+                                              : Colors.black54),
+                                      size: 16,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
 
                           // ─── أزرار التعديل/الحذف (للمالك فقط) ───
                           if (onEdit != null || onDelete != null) ...[
