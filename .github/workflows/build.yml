@@ -39,35 +39,37 @@ jobs:
           file android/app/rasmna-upload.jks || true
           SIZE=$(stat -c%s android/app/rasmna-upload.jks)
           if [ "$SIZE" -lt 1000 ]; then
-            echo "❌ Keystore too small ($SIZE bytes) — Secret corrupted!"
+            echo "ERROR: Keystore too small ($SIZE bytes)"
             exit 1
           fi
-          echo "✅ Keystore size: $SIZE bytes"
+          echo "OK: Keystore size $SIZE bytes"
 
-      # ═══════════════════════════════════════════════
-      # 🔍 خطوة تشخيصية: عرض الـ aliases المتوفرة
-      # ═══════════════════════════════════════════════
-      - name: List keystore aliases (DIAGNOSTIC)
+      - name: Auto-detect Keystore Alias
+        id: keystore_info
         run: |
-          echo "═══════════════════════════════════════"
-          echo "🔍 Available aliases in keystore:"
-          echo "═══════════════════════════════════════"
-          keytool -list -keystore android/app/rasmna-upload.jks \
-            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" 2>&1 || true
-          echo "═══════════════════════════════════════"
-          echo "🔑 KEY_ALIAS value from secrets:"
-          echo "${{ secrets.KEY_ALIAS }}"
-          echo "═══════════════════════════════════════"
+          KEYSTORE_PASS="${{ secrets.KEYSTORE_PASSWORD }}"
+          KEYSTORE="android/app/rasmna-upload.jks"
+          echo "--- Keystore listing ---"
+          keytool -list -v -keystore "$KEYSTORE" -storepass "$KEYSTORE_PASS" 2>&1 | head -30 || true
+          echo "--- End listing ---"
+          ALIAS=$(keytool -list -keystore "$KEYSTORE" -storepass "$KEYSTORE_PASS" 2>/dev/null | grep -i "PrivateKeyEntry" | head -1 | cut -d',' -f1 | xargs)
+          if [ -z "$ALIAS" ]; then
+            echo "Fallback to KEY_ALIAS secret"
+            ALIAS="${{ secrets.KEY_ALIAS }}"
+          fi
+          echo "Detected alias: $ALIAS"
+          echo "alias=$ALIAS" >> $GITHUB_OUTPUT
 
       - name: Create key.properties
         run: |
+          ALIAS="${{ steps.keystore_info.outputs.alias }}"
           cat > android/key.properties << EOF
           storePassword=${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword=${{ secrets.KEY_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
+          keyAlias=$ALIAS
           storeFile=rasmna-upload.jks
           EOF
-          echo "✅ key.properties created"
+          echo "key.properties created"
 
       - name: Clean old caches
         run: |
@@ -87,7 +89,7 @@ jobs:
       - name: Verify APK exists
         run: |
           ls -lh build/app/outputs/flutter-apk/
-          test -f build/app/outputs/flutter-apk/app-release.apk && echo "✅ APK built successfully"
+          test -f build/app/outputs/flutter-apk/app-release.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
