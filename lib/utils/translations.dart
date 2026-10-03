@@ -31,6 +31,22 @@ class T {
     'favorites': {'ar': 'المفضلة', 'en': 'Favorites'},
     'admin_panel': {'ar': 'لوحة الأدمن', 'en': 'Admin Panel'},
     'dark_mode': {'ar': 'الوضع الليلي', 'en': 'Dark Mode'},
+    'privacy_policy': {
+      'ar': 'سياسة الخصوصية',
+      'en': 'Privacy Policy'
+    },
+    'privacy_effective_date': {
+      'ar': 'تاريخ السريان: أكتوبر 2026',
+      'en': 'Effective Date: October 2026'
+    },
+    'privacy_intro': {
+      'ar': 'نحن في تطبيق "رسمنا" نؤمن بأن الخصوصية هي حق أساسي من حقوق المستخدمين. لقد صُمم هذا التطبيق ليكون بيئة آمنة وحرة لبيع وشراء الصور الرقمية، ودون أي تعقيدات تتعلق بجمع البيانات أو تتبع النشاط الشخصي.\n\nباستخدامك لتطبيق "رسمنا"، فإنك توافق على الالتزام بالبنود الموضحة في هذه السياسة:',
+      'en': 'At Rasmna, we believe that privacy is a fundamental right of every user. This app is designed to be a safe and free environment for buying and selling digital images, without any complexities related to data collection or personal activity tracking.\n\nBy using Rasmna, you agree to comply with the terms outlined in this policy:'
+    },
+    'privacy_footer': {
+      'ar': 'خصوصيتك محمية بالكامل — نحن لا نجمع أي بيانات',
+      'en': 'Your privacy is fully protected — we collect no data'
+    },
     'logout': {'ar': 'تسجيل الخروج', 'en': 'Logout'},
     'logout_confirm': {
       'ar': 'هل تريد الخروج من الحساب؟',
