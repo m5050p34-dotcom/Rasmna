@@ -44,6 +44,12 @@ jobs:
           fi
           echo "✅ Keystore size: $SIZE bytes"
 
+      - name: List keystore aliases (diagnostic)
+        run: |
+          echo "═══════ Aliases in keystore ═══════"
+          keytool -list -keystore android/app/rasmna-upload.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" 2>&1 || true
+          echo "═══════ Done ═══════"
+
       - name: Create key.properties
         run: |
           cat > android/key.properties << EOF
