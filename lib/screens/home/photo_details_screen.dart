@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../models/photo_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/favorites_provider.dart';
+import '../../providers/photo_provider.dart';
 import '../../services/photo_service.dart';
 import '../../services/reports_service.dart';
 import '../../utils/app_theme.dart';
@@ -27,11 +28,19 @@ class PhotoDetailsScreen extends StatefulWidget {
 class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
   final _photoService = PhotoService();
   final _reportsService = ReportsService();
+  final _pageController = PageController();
+
+  List<PhotoModel> _groupImages = [];
+  int _currentIndex = 0;
+  bool _groupLoading = false;
 
   bool _isPurchasing = false;
   bool _isDownloading = false;
   bool? _hasPurchased;
   bool _hasReported = false;
+
+  PhotoModel get _currentPhoto =>
+      _groupImages.isEmpty ? widget.photo : _groupImages[_currentIndex];
 
   bool get _isOwner =>
       context.read<AuthProvider>().userId == widget.photo.userId;
@@ -39,14 +48,58 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
   bool get _canDownload =>
       widget.photo.isFree || _isOwner || (_hasPurchased ?? false);
 
-  bool get _isTransparent =>
-      widget.photo.format == 'png' || widget.photo.format == 'webp';
+  bool get _isTransparent {
+    final f = _currentPhoto.format;
+    return f == 'png' || f == 'webp';
+  }
+
+  bool get _isMultiGroup => _groupImages.length > 1;
 
   @override
   void initState() {
     super.initState();
+    _loadGroupIfNeeded();
     _checkPurchaseStatus();
     _checkReportedStatus();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  // ═══════════════════════════════════════════════
+  // 📥 تحميل صور المجموعة إن وُجدت
+  // ═══════════════════════════════════════════════
+  Future<void> _loadGroupIfNeeded() async {
+    if (!widget.photo.isPartOfGroup) {
+      _groupImages = [widget.photo];
+      return;
+    }
+
+    setState(() => _groupLoading = true);
+    try {
+      final images = await context
+          .read<PhotoProvider>()
+          .getGroupPhotos(widget.photo.groupId!);
+
+      if (mounted) {
+        setState(() {
+          _groupImages = images.isEmpty ? [widget.photo] : images;
+          _currentIndex = images.indexWhere((p) => p.id == widget.photo.id);
+          if (_currentIndex < 0) _currentIndex = 0;
+          _groupLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _groupImages = [widget.photo];
+          _groupLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _checkPurchaseStatus() async {
@@ -55,7 +108,9 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
       return;
     }
     try {
-      final purchased = await _photoService.hasPurchased(widget.photo.id);
+      final purchased = widget.photo.isPartOfGroup
+          ? await _photoService.hasPurchasedGroup(widget.photo.groupId!)
+          : await _photoService.hasPurchased(widget.photo.id);
       if (mounted) setState(() => _hasPurchased = purchased);
     } catch (_) {
       if (mounted) setState(() => _hasPurchased = false);
@@ -74,7 +129,8 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => _FullScreenPhotoViewer(
-          imageUrl: widget.photo.imageUrl,
+          images: _groupImages,
+          initialIndex: _currentIndex,
           title: widget.photo.title,
         ),
       ),
@@ -92,220 +148,8 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
   }
 
   // ═══════════════════════════════════════════════
-  // 🚨 نافذة الإبلاغ (مع Radio مخصص بدل Deprecated)
+  // 🛒 الشراء
   // ═══════════════════════════════════════════════
-  Future<void> _showReportDialog() async {
-    final reasons = [
-      'محتوى مخالف',
-      'انتهاك حقوق الملكية',
-      'محتوى غير لائق',
-      'معلومة مضللة',
-      'إعلان مزعج',
-      'أخرى',
-    ];
-
-    String? selectedReason;
-    final detailsController = TextEditingController();
-    bool isSubmitting = false;
-    final messenger = ScaffoldMessenger.of(context);
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-          contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppTheme.error.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.flag,
-                  color: AppTheme.error,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'الإبلاغ عن الصورة',
-                  style: TextStyle(fontSize: 16),
-                ),
-              ),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'اختر سبب الإبلاغ:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // ✅ قائمة أسباب الإبلاغ (Radio مخصص بدون deprecated)
-                ...reasons.map(
-                  (reason) => InkWell(
-                    onTap: isSubmitting
-                        ? null
-                        : () => setDialogState(
-                              () => selectedReason = reason,
-                            ),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        children: [
-                          // دائرة الراديو المخصصة
-                          Container(
-                            width: 22,
-                            height: 22,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: selectedReason == reason
-                                    ? AppTheme.error
-                                    : Colors.grey.withValues(alpha: 0.5),
-                                width: 2,
-                              ),
-                            ),
-                            child: selectedReason == reason
-                                ? Center(
-                                    child: Container(
-                                      width: 12,
-                                      height: 12,
-                                      decoration: const BoxDecoration(
-                                        color: AppTheme.error,
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              reason,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: selectedReason == reason
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: selectedReason == reason
-                                    ? AppTheme.error
-                                    : null,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                TextField(
-                  controller: detailsController,
-                  maxLines: 3,
-                  maxLength: 200,
-                  enabled: !isSubmitting,
-                  decoration: const InputDecoration(
-                    labelText: 'تفاصيل (اختياري)',
-                    hintText: 'اشرح سبب الإبلاغ...',
-                    alignLabelWithHint: true,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actionsPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          actions: [
-            TextButton(
-              onPressed: isSubmitting
-                  ? null
-                  : () => Navigator.pop(dialogContext, false),
-              child: const Text('إلغاء'),
-            ),
-            ElevatedButton.icon(
-              onPressed: selectedReason == null || isSubmitting
-                  ? null
-                  : () async {
-                      setDialogState(() => isSubmitting = true);
-                      try {
-                        await _reportsService.submitReport(
-                          photoId: widget.photo.id,
-                          reason: selectedReason!,
-                          details: detailsController.text.trim().isEmpty
-                              ? null
-                              : detailsController.text.trim(),
-                        );
-                        if (dialogContext.mounted) {
-                          Navigator.pop(dialogContext, true);
-                        }
-                      } catch (e) {
-                        if (dialogContext.mounted) {
-                          Navigator.pop(dialogContext, false);
-                        }
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(Helpers.errorMessage(e)),
-                            backgroundColor: AppTheme.error,
-                          ),
-                        );
-                      }
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.error,
-              ),
-              icon: isSubmitting
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.send, size: 18),
-              label: Text(isSubmitting ? 'جارٍ...' : 'إرسال'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (confirmed == true) {
-      if (mounted) {
-        setState(() => _hasReported = true);
-      }
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('✅ تم إرسال البلاغ. شكراً لك!'),
-          backgroundColor: AppTheme.success,
-          duration: Duration(seconds: 2),
-        ),
-      );
-    }
-  }
-
   Future<void> _purchase() async {
     final auth = context.read<AuthProvider>();
     final profile = auth.profile;
@@ -326,6 +170,19 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (_isMultiGroup) ...[
+              Row(
+                children: [
+                  const Icon(Icons.collections, color: AppTheme.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${_groupImages.length} صور في هذه المجموعة',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+            ],
             Text(
               'هل تريد شراء "${widget.photo.title}" مقابل '
               '${widget.photo.price.toInt()} نقطة؟',
@@ -373,21 +230,26 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
 
     setState(() => _isPurchasing = true);
     try {
-      await _photoService.purchasePhoto(widget.photo.id);
+      if (widget.photo.isPartOfGroup) {
+        await _photoService.purchasePhotoGroup(widget.photo.groupId!);
+      } else {
+        await _photoService.purchasePhoto(widget.photo.id);
+      }
       await auth.refreshProfile();
       if (mounted) {
         setState(() => _hasPurchased = true);
         _showSnack('🎉 تم الشراء بنجاح! يمكنك التحميل الآن', AppTheme.success);
       }
     } catch (e) {
-      if (mounted) {
-        _showSnack(Helpers.errorMessage(e), AppTheme.error);
-      }
+      if (mounted) _showSnack(Helpers.errorMessage(e), AppTheme.error);
     } finally {
       if (mounted) setState(() => _isPurchasing = false);
     }
   }
 
+  // ═══════════════════════════════════════════════
+  // ⬇️ التحميل
+  // ═══════════════════════════════════════════════
   Future<void> _download() async {
     if (!_canDownload) {
       _showSnack('🔒 يجب شراء الصورة أولاً للتحميل', AppTheme.warning);
@@ -396,37 +258,31 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
 
     setState(() => _isDownloading = true);
     try {
-      final response = await http.get(Uri.parse(widget.photo.imageUrl));
-      if (response.statusCode != 200) {
-        throw Exception('فشل التحميل (${response.statusCode})');
-      }
+      final imagesToDownload =
+          _isMultiGroup ? _groupImages : [_currentPhoto];
 
-      final format = widget.photo.format.isNotEmpty
-          ? widget.photo.format.toLowerCase()
-          : 'jpg';
-      final isTrans = format == 'png' || format == 'webp';
+      for (int i = 0; i < imagesToDownload.length; i++) {
+        final photo = imagesToDownload[i];
+        final response = await http.get(Uri.parse(photo.imageUrl));
+        if (response.statusCode != 200) continue;
+        final safeTitle = photo.title
+            .replaceAll(RegExp(r'[^\w\s\u0600-\u06FF]'), '_')
+            .trim();
+        final fileName =
+            'Rasmna_${safeTitle}_${DateTime.now().millisecondsSinceEpoch}';
 
-      final safeTitle = widget.photo.title
-          .replaceAll(RegExp(r'[^\w\s\u0600-\u06FF]'), '_')
-          .trim();
-      final fileName =
-          'Rasmna_${safeTitle}_${DateTime.now().millisecondsSinceEpoch}';
-
-      final Uint8List bytes = response.bodyBytes;
-      final result = await ImageGallerySaverPlus.saveImage(
-        bytes,
-        quality: 100,
-        name: fileName,
-      );
-
-      if (result == null || result['isSuccess'] != true) {
-        throw Exception('فشل الحفظ: ${result?['errorMessage']}');
+        final Uint8List bytes = response.bodyBytes;
+        await ImageGallerySaverPlus.saveImage(
+          bytes,
+          quality: 100,
+          name: fileName,
+        );
       }
 
       if (mounted) {
         _showSnack(
-          isTrans
-              ? '✅ تم حفظ الصورة (${format.toUpperCase()} شفاف) في المعرض'
+          _isMultiGroup
+              ? '✅ تم حفظ ${imagesToDownload.length} صور في المعرض'
               : '✅ تم حفظ الصورة في معرض الصور',
           AppTheme.success,
         );
@@ -450,10 +306,198 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
     );
   }
 
+  // ═══════════════════════════════════════════════
+  // 🚨 الإبلاغ
+  // ═══════════════════════════════════════════════
+  Future<void> _showReportDialog() async {
+    final reasons = [
+      'محتوى مخالف',
+      'انتهاك حقوق الملكية',
+      'محتوى غير لائق',
+      'معلومة مضللة',
+      'إعلان مزعج',
+      'أخرى',
+    ];
+
+    String? selectedReason;
+    final detailsController = TextEditingController();
+    bool isSubmitting = false;
+    final messenger = ScaffoldMessenger.of(context);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.error.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.flag,
+                    color: AppTheme.error, size: 22),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text('الإبلاغ عن الصورة',
+                    style: TextStyle(fontSize: 16)),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('اختر سبب الإبلاغ:',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 8),
+                ...reasons.map(
+                  (reason) => InkWell(
+                    onTap: isSubmitting
+                        ? null
+                        : () => setDialogState(
+                            () => selectedReason = reason),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: selectedReason == reason
+                                    ? AppTheme.error
+                                    : Colors.grey.withValues(alpha: 0.5),
+                                width: 2,
+                              ),
+                            ),
+                            child: selectedReason == reason
+                                ? Center(
+                                    child: Container(
+                                      width: 12,
+                                      height: 12,
+                                      decoration: const BoxDecoration(
+                                        color: AppTheme.error,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              reason,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: selectedReason == reason
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: selectedReason == reason
+                                    ? AppTheme.error
+                                    : null,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: detailsController,
+                  maxLines: 3,
+                  maxLength: 200,
+                  enabled: !isSubmitting,
+                  decoration: const InputDecoration(
+                    labelText: 'تفاصيل (اختياري)',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton.icon(
+              onPressed: selectedReason == null || isSubmitting
+                  ? null
+                  : () async {
+                      setDialogState(() => isSubmitting = true);
+                      try {
+                        await _reportsService.submitReport(
+                          photoId: widget.photo.id,
+                          reason: selectedReason!,
+                          details: detailsController.text.trim().isEmpty
+                              ? null
+                              : detailsController.text.trim(),
+                        );
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext, true);
+                        }
+                      } catch (e) {
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext, false);
+                        }
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(Helpers.errorMessage(e)),
+                            backgroundColor: AppTheme.error,
+                          ),
+                        );
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.error,
+              ),
+              icon: isSubmitting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.send, size: 18),
+              label: Text(isSubmitting ? 'جارٍ...' : 'إرسال'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      if (mounted) setState(() => _hasReported = true);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('✅ تم إرسال البلاغ. شكراً لك!'),
+          backgroundColor: AppTheme.success,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final photo = widget.photo;
     final isFav = context.watch<FavoritesProvider>().isFavorited(photo.id);
+    final current = _currentPhoto;
 
     return Scaffold(
       body: CustomScrollView(
@@ -462,17 +506,14 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
             expandedHeight: 350,
             pinned: true,
             actions: [
-              // 🚨 زر الإبلاغ
               if (!_isOwner)
                 IconButton(
                   icon: Icon(
                     _hasReported ? Icons.flag : Icons.outlined_flag,
                     color: _hasReported ? AppTheme.error : Colors.white,
                   ),
-                  tooltip: _hasReported ? 'تم الإبلاغ' : 'إبلاغ',
                   onPressed: _hasReported ? null : _showReportDialog,
                 ),
-              // ❤️ زر المفضلة
               IconButton(
                 icon: Icon(
                   isFav ? Icons.favorite : Icons.favorite_border,
@@ -494,19 +535,11 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
               ),
             ],
             flexibleSpace: FlexibleSpaceBar(
-              background: Hero(
-                tag: 'photo_${photo.id}',
-                child: InteractiveViewer(
-                  minScale: 1.0,
-                  maxScale: 4.0,
-                  child: CachedNetworkImage(
-                    imageUrl: photo.imageUrl,
-                    fit: _isTransparent ? BoxFit.contain : BoxFit.cover,
-                    placeholder: (_, __) =>
-                        const Center(child: CircularProgressIndicator()),
-                  ),
-                ),
-              ),
+              background: _groupLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _isMultiGroup
+                      ? _buildImagePager()
+                      : _buildSingleImage(current),
             ),
           ),
           SliverToBoxAdapter(
@@ -515,174 +548,16 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ─── العنوان + شارة الشفافية ───
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          photo.title,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      if (_isTransparent)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [AppTheme.success, AppTheme.primary],
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.auto_awesome,
-                                  color: Colors.white, size: 12),
-                              SizedBox(width: 4),
-                              Text(
-                                'شفاف',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
+                  if (_isMultiGroup) ...[
+                    _buildThumbnails(),
+                    const SizedBox(height: 16),
+                  ],
+                  _buildTitleRow(current),
                   const SizedBox(height: 12),
-
-                  // ─── المصور + التصنيف ───
-                  Row(
-                    children: [
-                      InkWell(
-                        onTap: _openPhotographerProfile,
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 16,
-                                backgroundColor: AppTheme.primary,
-                                backgroundImage: (photo.owner?.avatarUrl !=
-                                            null &&
-                                        photo.owner!.avatarUrl!.isNotEmpty)
-                                    ? CachedNetworkImageProvider(
-                                        photo.owner!.avatarUrl!)
-                                    : null,
-                                child: (photo.owner?.avatarUrl == null ||
-                                        photo.owner!.avatarUrl!.isEmpty)
-                                    ? Text(
-                                        photo.owner?.initial ?? '?',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      )
-                                    : null,
-                              ),
-                              const SizedBox(width: 8),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    photo.ownerName,
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const Text(
-                                    'اضغط لعرض الملف الشخصي',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (!_isOwner)
-                                const Padding(
-                                  padding: EdgeInsets.only(left: 4),
-                                  child: Icon(
-                                    Icons.arrow_forward_ios,
-                                    size: 12,
-                                    color: AppTheme.primary,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          AppConstants.photoCategories.firstWhere(
-                            (c) => c['key'] == photo.category,
-                            orElse: () =>
-                                {'ar': photo.category, 'en': photo.category},
-                          )['ar']!,
-                          style: const TextStyle(
-                            color: AppTheme.primary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
+                  _buildOwnerRow(photo),
                   const SizedBox(height: 20),
-
-                  // ─── زر المعاينة ───
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: OutlinedButton.icon(
-                      onPressed: _openFullscreen,
-                      icon: const Icon(Icons.fullscreen, size: 24),
-                      label: const Text(
-                        'معاينة كاملة الشاشة',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.primary,
-                        side: const BorderSide(
-                          color: AppTheme.primary,
-                          width: 2,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-
+                  _buildPreviewButton(),
                   const SizedBox(height: 20),
-
-                  // ─── قسم الشراء/التحميل ───
                   if (_isOwner)
                     _ownerSection()
                   else if (photo.isFree)
@@ -691,10 +566,7 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
                     _purchasedSection()
                   else
                     _purchaseSection(),
-
                   const SizedBox(height: 20),
-
-                  // ─── معلومات الصورة (التاريخ + السعر) ───
                   _buildPhotoInfoCard(),
                 ],
               ),
@@ -706,189 +578,275 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
   }
 
   // ═══════════════════════════════════════════════
-  // 📅 بطاقة المعلومات السفلية (تاريخ + سعر + صيغة)
+  // 🖼️ PageView للصور المتعددة
   // ═══════════════════════════════════════════════
-  Widget _buildPhotoInfoCard() {
-    final photo = widget.photo;
-    final format = photo.format.isNotEmpty
-        ? photo.format.toUpperCase()
-        : 'JPG';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest
-            .withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppTheme.primary.withValues(alpha: 0.15),
-          width: 1.2,
+  Widget _buildImagePager() {
+    return Stack(
+      children: [
+        PageView.builder(
+          controller: _pageController,
+          itemCount: _groupImages.length,
+          onPageChanged: (i) => setState(() => _currentIndex = i),
+          itemBuilder: (context, index) {
+            final img = _groupImages[index];
+            final isTrans =
+                img.format == 'png' || img.format == 'webp';
+            return Hero(
+              tag: 'photo_${img.id}',
+              child: InteractiveViewer(
+                minScale: 1.0,
+                maxScale: 4.0,
+                child: CachedNetworkImage(
+                  imageUrl: img.imageUrl,
+                  fit: isTrans ? BoxFit.contain : BoxFit.cover,
+                  placeholder: (_, __) =>
+                      const Center(child: CircularProgressIndicator()),
+                ),
+              ),
+            );
+          },
         ),
-      ),
-      child: Column(
-        children: [
-          // ─── الصف الأول: التاريخ ───
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppTheme.primary.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.calendar_today,
-                  color: AppTheme.primary,
-                  size: 18,
-                ),
+        // عداد
+        Positioned(
+          top: 60,
+          right: 16,
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '${_currentIndex + 1} / ${_groupImages.length}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
               ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'تاريخ النشر',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _formatDate(photo.createdAt),
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
+        ),
+      ],
+    );
+  }
 
-          const SizedBox(height: 14),
-          Divider(
-            height: 1,
-            color: AppTheme.primary.withValues(alpha: 0.1),
-          ),
-          const SizedBox(height: 14),
-
-          // ─── الصف الثاني: الصيغة + السعر ───
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppTheme.secondary.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.image_outlined,
-                  color: AppTheme.secondary,
-                  size: 18,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'الصيغة',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _isTransparent
-                        ? '$format • شفاف'
-                        : '$format • عالية الجودة',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-
-              // ─── السعر ───
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: photo.isFree
-                        ? [AppTheme.success, AppTheme.success]
-                        : [AppTheme.primary, AppTheme.secondary],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: (photo.isFree
-                              ? AppTheme.success
-                              : AppTheme.primary)
-                          .withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      photo.isFree
-                          ? Icons.download_done
-                          : Icons.stars,
-                      color: Colors.white,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      photo.isFree
-                          ? 'مجاني'
-                          : '${photo.price.toInt()} نقطة',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
+  Widget _buildSingleImage(PhotoModel photo) {
+    final isTrans = photo.format == 'png' || photo.format == 'webp';
+    return Hero(
+      tag: 'photo_${photo.id}',
+      child: InteractiveViewer(
+        minScale: 1.0,
+        maxScale: 4.0,
+        child: CachedNetworkImage(
+          imageUrl: photo.imageUrl,
+          fit: isTrans ? BoxFit.contain : BoxFit.cover,
+          placeholder: (_, __) =>
+              const Center(child: CircularProgressIndicator()),
+        ),
       ),
     );
   }
 
   // ═══════════════════════════════════════════════
-  // 📅 تنسيق التاريخ بالعربية
+  // 📸 شريط الصور المصغّرة
   // ═══════════════════════════════════════════════
-  String _formatDate(DateTime dt) {
-    const months = [
-      'يناير',
-      'فبراير',
-      'مارس',
-      'أبريل',
-      'مايو',
-      'يونيو',
-      'يوليو',
-      'أغسطس',
-      'سبتمبر',
-      'أكتوبر',
-      'نوفمبر',
-      'ديسمبر',
-    ];
-    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+  Widget _buildThumbnails() {
+    return SizedBox(
+      height: 70,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: _groupImages.length,
+        itemBuilder: (context, index) {
+          final isSelected = index == _currentIndex;
+          return GestureDetector(
+            onTap: () {
+              _pageController.animateToPage(
+                index,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+            },
+            child: Container(
+              width: 60,
+              margin: const EdgeInsets.only(right: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isSelected
+                      ? AppTheme.primary
+                      : Colors.transparent,
+                  width: 2.5,
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: CachedNetworkImage(
+                  imageUrl: _groupImages[index].imageUrl,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTitleRow(PhotoModel photo) {
+    final isTrans = photo.format == 'png' || photo.format == 'webp';
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            photo.title,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        if (isTrans)
+          Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppTheme.success, AppTheme.primary],
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.auto_awesome,
+                    color: Colors.white, size: 12),
+                SizedBox(width: 4),
+                Text(
+                  'شفاف',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildOwnerRow(PhotoModel photo) {
+    return Row(
+      children: [
+        InkWell(
+          onTap: _openPhotographerProfile,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 8, vertical: 4),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: AppTheme.primary,
+                  backgroundImage:
+                      (photo.owner?.avatarUrl != null &&
+                              photo.owner!.avatarUrl!.isNotEmpty)
+                          ? CachedNetworkImageProvider(
+                              photo.owner!.avatarUrl!)
+                          : null,
+                  child: (photo.owner?.avatarUrl == null ||
+                          photo.owner!.avatarUrl!.isEmpty)
+                      ? Text(
+                          photo.owner?.initial ?? '?',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      photo.ownerName,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Text(
+                      'اضغط لعرض الملف الشخصي',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+                if (!_isOwner)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 4),
+                    child: Icon(
+                      Icons.arrow_forward_ios,
+                      size: 12,
+                      color: AppTheme.primary,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const Spacer(),
+        Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppTheme.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            AppConstants.photoCategories.firstWhere(
+              (c) => c['key'] == photo.category,
+              orElse: () =>
+                  {'ar': photo.category, 'en': photo.category},
+            )['ar']!,
+            style: const TextStyle(
+              color: AppTheme.primary,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPreviewButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: OutlinedButton.icon(
+        onPressed: _openFullscreen,
+        icon: const Icon(Icons.fullscreen, size: 24),
+        label: const Text(
+          'معاينة كاملة الشاشة',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppTheme.primary,
+          side: const BorderSide(color: AppTheme.primary, width: 2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _ownerSection() {
@@ -924,7 +882,8 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
           decoration: BoxDecoration(
             color: AppTheme.success.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTheme.success.withValues(alpha: 0.3)),
+            border: Border.all(
+                color: AppTheme.success.withValues(alpha: 0.3)),
           ),
           child: const Row(
             children: [
@@ -965,9 +924,11 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
             label: Text(
               _isPurchasing
                   ? 'جارٍ الشراء...'
-                  : 'شراء بـ ${widget.photo.price.toInt()} نقطة',
+                  : _isMultiGroup
+                      ? 'شراء ${_groupImages.length} صور بـ ${widget.photo.price.toInt()} نقطة'
+                      : 'شراء بـ ${widget.photo.price.toInt()} نقطة',
               style: const TextStyle(
-                fontSize: 16,
+                fontSize: 15,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -979,12 +940,10 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
           height: 54,
           child: ElevatedButton.icon(
             onPressed: () => _showSnack(
-              '🔒 يجب شراء الصورة أولاً للتحميل',
-              AppTheme.warning,
-            ),
+                '🔒 يجب شراء الصورة أولاً للتحميل', AppTheme.warning),
             icon: const Icon(Icons.lock, size: 22),
             label: const Text(
-              'تحميل (مقفل - يتطلب شراء)',
+              'تحميل (مقفل)',
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
             ),
             style: ElevatedButton.styleFrom(
@@ -1013,28 +972,183 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
               )
             : const Icon(Icons.download, size: 22),
         label: Text(
-          _isDownloading ? 'جارٍ التحميل...' : 'تحميل الصورة',
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
+          _isDownloading
+              ? 'جارٍ التحميل...'
+              : _isMultiGroup
+                  ? 'تحميل ${_groupImages.length} صور'
+                  : 'تحميل الصورة',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ),
     );
   }
+
+  // ═══════════════════════════════════════════════
+  // 📅 بطاقة المعلومات السفلية
+  // ═══════════════════════════════════════════════
+  Widget _buildPhotoInfoCard() {
+    final photo = widget.photo;
+    final format = photo.format.isNotEmpty
+        ? photo.format.toUpperCase()
+        : 'JPG';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
+            .withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppTheme.primary.withValues(alpha: 0.15),
+          width: 1.2,
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.calendar_today,
+                    color: AppTheme.primary, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('تاريخ النشر',
+                      style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  const SizedBox(height: 2),
+                  Text(
+                    _formatDate(photo.createdAt),
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Divider(
+              height: 1,
+              color: AppTheme.primary.withValues(alpha: 0.1)),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.secondary.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.image_outlined,
+                    color: AppTheme.secondary, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('الصيغة',
+                      style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  const SizedBox(height: 2),
+                  Text(
+                    _isTransparent ? '$format • شفاف' : '$format • عالي',
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: photo.isFree
+                        ? [AppTheme.success, AppTheme.success]
+                        : [AppTheme.primary, AppTheme.secondary],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      photo.isFree ? Icons.download_done : Icons.stars,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      photo.isFree
+                          ? 'مجاني'
+                          : '${photo.price.toInt()} نقطة',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime dt) {
+    const months = [
+      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+    ];
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+  }
 }
 
 // ═══════════════════════════════════════════════
-// عارض الصورة كاملة الشاشة
+// 🖼️ عارض كامل الشاشة (يدعم مجموعة صور)
 // ═══════════════════════════════════════════════
-class _FullScreenPhotoViewer extends StatelessWidget {
-  final String imageUrl;
+class _FullScreenPhotoViewer extends StatefulWidget {
+  final List<PhotoModel> images;
+  final int initialIndex;
   final String title;
 
   const _FullScreenPhotoViewer({
-    required this.imageUrl,
+    required this.images,
+    required this.initialIndex,
     required this.title,
   });
+
+  @override
+  State<_FullScreenPhotoViewer> createState() =>
+      _FullScreenPhotoViewerState();
+}
+
+class _FullScreenPhotoViewerState extends State<_FullScreenPhotoViewer> {
+  late PageController _controller;
+  late int _index;
+
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.initialIndex;
+    _controller = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1043,22 +1157,33 @@ class _FullScreenPhotoViewer extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: Text(title, style: const TextStyle(color: Colors.white)),
-      ),
-      body: Center(
-        child: InteractiveViewer(
-          minScale: 1.0,
-          maxScale: 6.0,
-          child: CachedNetworkImage(
-            imageUrl: imageUrl,
-            fit: BoxFit.contain,
-            placeholder: (_, __) =>
-                const Center(child: CircularProgressIndicator()),
-            errorWidget: (_, __, ___) => const Center(
-              child: Icon(Icons.broken_image, color: Colors.white, size: 64),
-            ),
-          ),
+        title: Text(
+          widget.images.length > 1
+              ? '${_index + 1} / ${widget.images.length}'
+              : widget.title,
+          style: const TextStyle(color: Colors.white),
         ),
+      ),
+      body: PageView.builder(
+        controller: _controller,
+        itemCount: widget.images.length,
+        onPageChanged: (i) => setState(() => _index = i),
+        itemBuilder: (context, index) {
+          return InteractiveViewer(
+            minScale: 1.0,
+            maxScale: 6.0,
+            child: CachedNetworkImage(
+              imageUrl: widget.images[index].imageUrl,
+              fit: BoxFit.contain,
+              placeholder: (_, __) =>
+                  const Center(child: CircularProgressIndicator()),
+              errorWidget: (_, __, ___) => const Center(
+                child: Icon(Icons.broken_image,
+                    color: Colors.white, size: 64),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
