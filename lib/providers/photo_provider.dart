@@ -58,9 +58,6 @@ class PhotoProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ═══════════════════════════════════════════════
-  // 🆕 للأدمن: جلب كل الصور
-  // ═══════════════════════════════════════════════
   Future<void> fetchAdminPhotos({String? category}) async {
     _isLoading = true;
     notifyListeners();
@@ -75,6 +72,9 @@ class PhotoProvider extends ChangeNotifier {
     }
   }
 
+  // ═══════════════════════════════════════════════
+  // 📤 رفع صورة واحدة
+  // ═══════════════════════════════════════════════
   Future<void> uploadPhoto({
     required File file,
     required String title,
@@ -99,6 +99,43 @@ class PhotoProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  // ═══════════════════════════════════════════════
+  // 📤 رفع مجموعة صور
+  // ═══════════════════════════════════════════════
+  Future<List<PhotoModel>> uploadPhotoGroup({
+    required List<File> files,
+    required List<String> formats,
+    required String title,
+    required String category,
+    required double price,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final photos = await _photoService.uploadPhotoGroup(
+        files: files,
+        formats: formats,
+        title: title,
+        category: category,
+        price: price,
+      );
+      final cover = photos.first;
+      _photos.insert(0, cover);
+      _userPhotos.insert(0, cover);
+      return photos;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // ═══════════════════════════════════════════════
+  // 📥 جلب صور مجموعة
+  // ═══════════════════════════════════════════════
+  Future<List<PhotoModel>> getGroupPhotos(String groupId) {
+    return _photoService.getGroupPhotos(groupId);
   }
 
   Future<void> updatePhoto({
