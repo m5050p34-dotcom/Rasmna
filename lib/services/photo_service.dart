@@ -12,7 +12,7 @@ class PhotoService {
   final _uuid = const Uuid();
 
   // ═══════════════════════════════════════════════
-  // 🎨 ضغط الصورة (يحافظ على الشفافية في PNG)
+  // 🎨 ضغط الصورة
   // ═══════════════════════════════════════════════
   Future<File> _compressImage(File file, String format) async {
     try {
@@ -20,12 +20,10 @@ class PhotoService {
       final isPng = lowerFormat == 'png';
       final isWebp = lowerFormat == 'webp';
 
-      // ⚠️ PNG و WebP: نحافظ على الشفافية
       if (isPng || isWebp) {
         return await _compressPreservingAlpha(file, isPng, isWebp);
       }
 
-      // JPG/JPEG: ضغط عادي (لا يوجد شفافية أصلاً)
       final dir = await getTemporaryDirectory();
       final targetPath = p.join(dir.path, '${_uuid.v4()}_compressed.jpg');
 
@@ -40,20 +38,13 @@ class PhotoService {
       );
 
       if (result == null) return file;
-
-      final compressed = File(result.path);
-      debugPrint(
-        '📸 JPG: ${(await file.length() / 1024 / 1024).toStringAsFixed(2)}MB → '
-        '${(await compressed.length() / 1024 / 1024).toStringAsFixed(2)}MB',
-      );
-      return compressed;
+      return File(result.path);
     } catch (e) {
       debugPrint('Compression error: $e');
       return file;
     }
   }
 
-  // ─── ضغط PNG/WebP مع الحفاظ على الشفافية ───
   Future<File> _compressPreservingAlpha(
     File file,
     bool isPng,
@@ -67,7 +58,6 @@ class PhotoService {
       final result = await FlutterImageCompress.compressAndGetFile(
         file.absolute.path,
         targetPath,
-        // PNG: نستخدم quality: 100 للحفاظ على الجودة والشفافية
         quality: isPng ? 100 : 85,
         minWidth: 1920,
         minHeight: 1920,
@@ -76,16 +66,10 @@ class PhotoService {
       );
 
       if (result == null) return file;
-
-      final compressed = File(result.path);
-      debugPrint(
-        '📸 $ext: ${(await file.length() / 1024).toStringAsFixed(0)}KB → '
-        '${(await compressed.length() / 1024).toStringAsFixed(0)}KB (شفاف ✅)',
-      );
-      return compressed;
+      return File(result.path);
     } catch (e) {
       debugPrint('Alpha compression error: $e');
-      return file; // إرجاع الأصل عند الفشل
+      return file;
     }
   }
 
@@ -101,8 +85,8 @@ class PhotoService {
     dynamic query = _supabase
         .from('photos')
         .select(
-          '*, profiles:user_id(id, username, email, avatar_url, is_admin)',
-        );
+            '*, profiles:user_id(id, username, email, avatar_url, is_admin)')
+        .or('is_group_cover.eq.true,group_id.is.null');
 
     if (category != null && category.isNotEmpty && category != 'all') {
       query = query.eq('category', category);
@@ -138,9 +122,9 @@ class PhotoService {
     final response = await _supabase
         .from('photos')
         .select(
-          '*, profiles:user_id(id, username, email, avatar_url, is_admin)',
-        )
+            '*, profiles:user_id(id, username, email, avatar_url, is_admin)')
         .eq('user_id', userId)
+        .or('is_group_cover.eq.true,group_id.is.null')
         .order('created_at', ascending: false);
 
     return (response as List)
@@ -149,7 +133,7 @@ class PhotoService {
   }
 
   // ═══════════════════════════════════════════════
-  // 📤 رفع صورة جديدة (يستخدم الملف المُعطى مباشرة)
+  // 📤 رفع صورة واحدة
   // ═══════════════════════════════════════════════
   Future<PhotoModel> uploadPhoto({
     required File file,
@@ -159,46 +143,76 @@ class PhotoService {
     required String format,
     VoidCallback? onProgress,
   }) async {
+    final results = await uploadPhotoGroup(
+      files: [file],
+      formats: [format],
+      title: title,
+      category: category,
+      price: price,
+    );
+    return results.first;
+  }
+
+  // ═══════════════════════════════════════════════
+  // 📤 رفع مجموعة صور
+  // ═══════════════════════════════════════════════
+  Future<List<PhotoModel>> uploadPhotoGroup({
+    required List<File> files,
+    required List<String> formats,
+    required String title,
+    required String category,
+    required double price,
+  }) async {
     final userId = _supabase.auth.currentUser!.id;
-    final lowerFormat = format.toLowerCase();
-    final finalFormat = lowerFormat == 'jpeg' ? 'jpg' : lowerFormat;
+    final results = <PhotoModel>[];
+    final groupId = files.length > 1 ? _uuid.v4() : null;
 
-    // الحفاظ على امتداد الملف الأصلي (PNG يبقى PNG)
-    final fileName = '${_uuid.v4()}.$finalFormat';
-    final filePath = '$userId/$fileName';
+    for (int i = 0; i < files.length; i++) {
+      final file = files[i];
+      final rawFormat = formats[i].toLowerCase();
+      final finalFormat = rawFormat == 'jpeg' ? 'jpg' : rawFormat;
+      final isCover = i == 0;
 
-    // ضغط مع الحفاظ على الشفافية
-    final compressedFile = await _compressImage(file, finalFormat);
+      final fileName = '${_uuid.v4()}.$finalFormat';
+      final filePath = '$userId/$fileName';
 
-    // إعداد Content-Type المناسب
-    final contentType = _contentTypeFor(finalFormat);
+      final compressed = await _compressImage(file, finalFormat);
+      final contentType = _contentTypeFor(finalFormat);
 
-    await _supabase.storage.from('photos').upload(
-          filePath,
-          compressedFile,
-          fileOptions: FileOptions(
-            upsert: false,
-            cacheControl: '3600',
-            contentType: contentType,
-          ),
-        );
+      await _supabase.storage.from('photos').upload(
+            filePath,
+            compressed,
+            fileOptions: FileOptions(
+              upsert: false,
+              cacheControl: '3600',
+              contentType: contentType,
+            ),
+          );
 
-    final imageUrl = _supabase.storage.from('photos').getPublicUrl(filePath);
+      final imageUrl =
+          _supabase.storage.from('photos').getPublicUrl(filePath);
 
-    final response = await _supabase
-        .from('photos')
-        .insert({
-          'user_id': userId,
-          'title': title.trim(),
-          'category': category,
-          'price': price,
-          'image_url': imageUrl,
-          'format': finalFormat,
-        })
-        .select('*, profiles:user_id(id, username, email, avatar_url, is_admin)')
-        .single();
+      final response = await _supabase
+          .from('photos')
+          .insert({
+            'user_id': userId,
+            'title': title.trim(),
+            'category': category,
+            'price': price,
+            'image_url': imageUrl,
+            'format': finalFormat,
+            'group_id': groupId,
+            'group_order': i,
+            'is_group_cover': isCover,
+          })
+          .select(
+              '*, profiles:user_id(id, username, email, avatar_url, is_admin)')
+          .single();
 
-    return PhotoModel.fromJson(response);
+      results.add(PhotoModel.fromJson(response));
+    }
+
+    return results;
   }
 
   String _contentTypeFor(String format) {
@@ -209,11 +223,25 @@ class PhotoService {
         return 'image/webp';
       case 'gif':
         return 'image/gif';
-      case 'jpg':
-      case 'jpeg':
       default:
         return 'image/jpeg';
     }
+  }
+
+  // ═══════════════════════════════════════════════
+  // 📥 جلب صور مجموعة
+  // ═══════════════════════════════════════════════
+  Future<List<PhotoModel>> getGroupPhotos(String groupId) async {
+    final response = await _supabase
+        .from('photos')
+        .select(
+            '*, profiles:user_id(id, username, email, avatar_url, is_admin)')
+        .eq('group_id', groupId)
+        .order('group_order', ascending: true);
+
+    return (response as List)
+        .map((e) => PhotoModel.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   // ═══════════════════════════════════════════════
@@ -234,19 +262,24 @@ class PhotoService {
         .from('photos')
         .update(updates)
         .eq('id', photoId)
-        .select('*, profiles:user_id(id, username, email, avatar_url, is_admin)')
+        .select(
+            '*, profiles:user_id(id, username, email, avatar_url, is_admin)')
         .single();
 
     return PhotoModel.fromJson(response);
   }
 
   // ═══════════════════════════════════════════════
-  // 🛒 شراء صورة
+  // 🛒 الشراء
   // ═══════════════════════════════════════════════
   Future<void> purchasePhoto(String photoId) async {
+    await _supabase.rpc('purchase_photo', params: {'p_photo_id': photoId});
+  }
+
+  Future<void> purchasePhotoGroup(String groupId) async {
     await _supabase.rpc(
-      'purchase_photo',
-      params: {'p_photo_id': photoId},
+      'purchase_photo_group',
+      params: {'p_group_id': groupId},
     );
   }
 
@@ -261,7 +294,25 @@ class PhotoService {
           .eq('photo_id', photoId)
           .maybeSingle();
       return result != null;
-    } catch (e) {
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> hasPurchasedGroup(String groupId) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return false;
+    try {
+      final result = await _supabase
+          .from('purchases')
+          .select('photo_id, photos:photo_id(group_id)')
+          .eq('user_id', userId);
+
+      return (result as List).any((row) {
+        final photo = row['photos'];
+        return photo != null && photo['group_id'] == groupId;
+      });
+    } catch (_) {
       return false;
     }
   }
@@ -273,9 +324,7 @@ class PhotoService {
       final response = await _supabase
           .from('purchases')
           .select(
-            'photo_id, '
-            'photos:photo_id(*, profiles:user_id(id, username, email, avatar_url, is_admin))',
-          )
+              'photo_id, photos:photo_id(*, profiles:user_id(id, username, email, avatar_url, is_admin))')
           .eq('user_id', userId)
           .order('created_at', ascending: false);
 
@@ -283,29 +332,42 @@ class PhotoService {
           .where((e) => e['photos'] != null)
           .map((e) => PhotoModel.fromJson(e['photos'] as Map<String, dynamic>))
           .toList();
-    } catch (e) {
+    } catch (_) {
       return [];
     }
   }
 
   // ═══════════════════════════════════════════════
-  // 🗑️ حذف صورة
+  // 🗑️ حذف
   // ═══════════════════════════════════════════════
   Future<void> deletePhoto({
     required String photoId,
     required String imageUrl,
   }) async {
-    final uri = Uri.parse(imageUrl);
-    final segments = uri.pathSegments;
-    final photosIndex = segments.indexOf('photos');
-    final filePath = segments.sublist(photosIndex + 1).join('/');
-
     try {
+      final uri = Uri.parse(imageUrl);
+      final segments = uri.pathSegments;
+      final photosIndex = segments.indexOf('photos');
+      final filePath = segments.sublist(photosIndex + 1).join('/');
       await _supabase.storage.from('photos').remove([filePath]);
     } catch (e) {
       debugPrint('Storage delete error: $e');
     }
 
-    await _supabase.from('photos').delete().eq('id', photoId);
+    String? groupId;
+    try {
+      final row = await _supabase
+          .from('photos')
+          .select('group_id')
+          .eq('id', photoId)
+          .maybeSingle();
+      groupId = row?['group_id'] as String?;
+    } catch (_) {}
+
+    if (groupId != null && groupId.isNotEmpty) {
+      await _supabase.from('photos').delete().eq('group_id', groupId);
+    } else {
+      await _supabase.from('photos').delete().eq('id', photoId);
+    }
   }
 }
