@@ -630,7 +630,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   obscureText: obscurePassword,
                   enabled: !isLoading,
                   decoration: InputDecoration(
-                    labelText: 'كلمة مرور الأدمن',
+                    labelText: 'كلمة مرور المستخدم',
                     prefixIcon: const Icon(Icons.lock_outlined),
                     suffixIcon: IconButton(
                       icon: Icon(
@@ -663,7 +663,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'سيتم تغيير البريد فوراً في المصادقة والبروفايل',
+                          'سيتم التحقق من كلمة مرور المستخدم ثم التغيير',
                           style: TextStyle(fontSize: 11),
                         ),
                       ),
@@ -702,7 +702,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                       if (adminPassword.isEmpty) {
                         messenger.showSnackBar(
                           const SnackBar(
-                            content: Text('أدخل كلمة مرور الأدمن'),
+                            content: Text('أدخل كلمة مرور المستخدم'),
                             backgroundColor: AppTheme.error,
                           ),
                         );
@@ -727,7 +727,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                         await service.adminChangeEmail(
                           userId: user.id,
                           newEmail: newEmail,
-                          adminPassword: adminPassword,
+                          userPassword: adminPassword,
                         );
 
                         if (dialogContext.mounted) {
@@ -866,8 +866,9 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   obscureText: obscureAdmin,
                   enabled: !isLoading,
                   decoration: InputDecoration(
-                    labelText: 'كلمة مرور الأدمن',
-                    prefixIcon: const Icon(Icons.admin_panel_settings),
+                    labelText: 'كلمة مرور المستخدم الحالية',
+                    prefixIcon: const Icon(Icons.lock_outlined),
+                    helperText: 'كلمة مرور المستخدم الحالية (للتحقق)',
                     suffixIcon: IconButton(
                       icon: Icon(
                         obscureAdmin
@@ -898,7 +899,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          '6 أحرف على الأقل — سيتم التغيير فوراً',
+                          'التحقق من كلمة المرور الحالية ثم التعيين',
                           style: TextStyle(fontSize: 11),
                         ),
                       ),
@@ -938,7 +939,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                       if (adminPassword.isEmpty) {
                         messenger.showSnackBar(
                           const SnackBar(
-                            content: Text('أدخل كلمة مرور الأدمن'),
+                            content: Text('أدخل كلمة مرور المستخدم الحالية'),
                             backgroundColor: AppTheme.error,
                           ),
                         );
@@ -951,7 +952,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                         await service.adminChangePassword(
                           userId: user.id,
                           newPassword: newPassword,
-                          adminPassword: adminPassword,
+                          userCurrentPassword: adminPassword,
                         );
 
                         if (dialogContext.mounted) {

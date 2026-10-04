@@ -345,31 +345,14 @@ class ProfileService {
   // ═══════════════════════════════════════════════
   // 📧 تغيير البريد (للأدمن — يحتاج كلمة مرور الأدمن)
   // ═══════════════════════════════════════════════
+  // ═══════════════════════════════════════════════
+  // 📧 تغيير البريد (يحتاج كلمة مرور المستخدم)
+  // ═══════════════════════════════════════════════
   Future<void> adminChangeEmail({
     required String userId,
     required String newEmail,
-    required String adminPassword,
+    required String userPassword,
   }) async {
-    // 1) التحقق من كلمة مرور الأدمن
-    final currentAdmin = _supabase.auth.currentUser;
-    if (currentAdmin == null || currentAdmin.email == null) {
-      throw Exception('لم يتم العثور على حساب الأدمن');
-    }
-
-    try {
-      await _supabase.auth.signInWithPassword(
-        email: currentAdmin.email!,
-        password: adminPassword,
-      );
-      debugPrint('OK: admin verified');
-    } on AuthException catch (e) {
-      if (e.message.toLowerCase().contains('invalid')) {
-        throw Exception('كلمة مرور الأدمن غير صحيحة');
-      }
-      rethrow;
-    }
-
-    // 2) استدعاء RPC (بدل Edge Function)
     final normalizedEmail = newEmail.trim().toLowerCase();
 
     try {
@@ -378,6 +361,7 @@ class ProfileService {
         params: {
           'p_user_id': userId,
           'p_new_email': normalizedEmail,
+          'p_user_password': userPassword,
         },
       );
 
@@ -394,6 +378,9 @@ class ProfileService {
       if (msg.contains('User not found')) {
         throw Exception('المستخدم غير موجود');
       }
+      if (msg.contains('Invalid user password')) {
+        throw Exception('كلمة مرور المستخدم غير صحيحة');
+      }
       if (msg.contains('Email already in use')) {
         throw Exception('هذا البريد مستخدم بالفعل');
       }
@@ -401,42 +388,21 @@ class ProfileService {
     }
   }
 
-
-
   // ═══════════════════════════════════════════════
-  // 🔐 تغيير كلمة مرور المستخدم (للأدمن)
+  // 🔐 تغيير كلمة المرور (يحتاج كلمة مرور المستخدم الحالية)
   // ═══════════════════════════════════════════════
   Future<void> adminChangePassword({
     required String userId,
     required String newPassword,
-    required String adminPassword,
+    required String userCurrentPassword,
   }) async {
-    // 1) التحقق من كلمة مرور الأدمن
-    final currentAdmin = _supabase.auth.currentUser;
-    if (currentAdmin == null || currentAdmin.email == null) {
-      throw Exception('لم يتم العثور على حساب الأدمن');
-    }
-
-    try {
-      await _supabase.auth.signInWithPassword(
-        email: currentAdmin.email!,
-        password: adminPassword,
-      );
-      debugPrint('OK: admin verified');
-    } on AuthException catch (e) {
-      if (e.message.toLowerCase().contains('invalid')) {
-        throw Exception('كلمة مرور الأدمن غير صحيحة');
-      }
-      rethrow;
-    }
-
-    // 2) استدعاء RPC
     try {
       final response = await _supabase.rpc(
         'admin_change_password',
         params: {
           'p_user_id': userId,
           'p_new_password': newPassword,
+          'p_user_current_password': userCurrentPassword,
         },
       );
 
@@ -453,12 +419,16 @@ class ProfileService {
       if (msg.contains('User not found')) {
         throw Exception('المستخدم غير موجود');
       }
-      if (msg.contains('too short')) {
-        throw Exception('كلمة المرور قصيرة جداً (6 أحرف على الأقل)');
+      if (msg.contains('Invalid user password')) {
+        throw Exception('كلمة مرور المستخدم الحالية غير صحيحة');
+      }
+      if (msg.contains('Password too short')) {
+        throw Exception('كلمة المرور الجديدة قصيرة جداً (6+)');
       }
       rethrow;
     }
   }
+
 
 }
 
