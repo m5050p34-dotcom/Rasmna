@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/photo_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/categories_provider.dart';
 import '../../providers/photo_provider.dart';
 import '../../services/follows_service.dart';
 import '../../utils/app_theme.dart';
@@ -373,7 +374,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // ─── الآيقونة النشطة (على يمين الاسم بصرياً) ───
         if (hasIcon)
           Padding(
             padding: const EdgeInsets.only(left: 8),
@@ -381,92 +381,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
               message: expiringSoon
                   ? 'آيقونتك ستنتهي خلال ${profile.activeIconDaysRemaining} يوم'
                   : 'آيقونة نشطة • ${profile.activeIconDaysRemaining} يوم متبقٍ',
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // إطار متدرّج للأيقونة
-                  Container(
-                    width: 34,
-                    height: 34,
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: expiringSoon
-                            ? [AppTheme.error, AppTheme.warning]
-                            : [
-                                const Color(0xFFFFD700),
-                                const Color(0xFFFFA500),
-                              ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: (expiringSoon
-                                  ? AppTheme.error
-                                  : const Color(0xFFFFD700))
-                              .withValues(alpha: 0.5),
-                          blurRadius: 8,
-                          spreadRadius: 1,
-                        ),
-                      ],
-                    ),
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      padding: const EdgeInsets.all(2),
-                      child: ClipOval(
-                        child: CachedNetworkImage(
-                          imageUrl: profile.activeIconUrl as String,
-                          fit: BoxFit.cover,
-                          width: 26,
-                          height: 26,
-                          placeholder: (_, __) => const Center(
-                            child: SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 1.5,
-                                color: AppTheme.primary,
-                              ),
-                            ),
-                          ),
-                          errorWidget: (_, __, ___) => const Icon(
-                            Icons.broken_image,
-                            size: 16,
-                            color: AppTheme.error,
-                          ),
-                        ),
-                      ),
-                    ),
+              child: SizedBox(
+                width: 36,
+                height: 36,
+                child: ClipOval(
+                  child: CachedNetworkImage(
+                    imageUrl: profile.activeIconUrl as String,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => const SizedBox.shrink(),
+                    errorWidget: (_, __, ___) => const SizedBox.shrink(),
                   ),
-                  // ─── شارة تحذير إذا قاربت على الانتهاء ───
-                  if (expiringSoon)
-                    Positioned(
-                      top: -4,
-                      right: -4,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: const BoxDecoration(
-                          color: AppTheme.error,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.warning_amber_rounded,
-                          color: Colors.white,
-                          size: 10,
-                        ),
-                      ),
-                    ),
-                ],
+                ),
               ),
             ),
           ),
-
-        // ─── الاسم ───
         Flexible(
           child: Text(
             profile.username,
@@ -527,11 +455,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _showEditPhotoDialog(PhotoModel photo) async {
+    // ✅ التقاط context قبل أي await
     final photoProvider = context.read<PhotoProvider>();
+    final catProvider = context.read<CategoriesProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    // ✅ تأكد من تحميل التصنيفات
+    if (catProvider.enabled.isEmpty) {
+      try {
+        await catProvider.load();
+      } catch (_) {}
+    }
+
+    // ✅ التحقق من mounted بعد await
+    if (!mounted) return;
+
+    // ✅ اقرأ التصنيفات من CategoriesProvider (بعد await مضمون)
+    final dynamicCategories = catProvider.categoriesAsMap
+        .where((c) => c['key'] != 'all')
+        .toList();
+
+    // احتياط: إذا القائمة فارغة → استخدم الافتراضية
+    final fallbackCategories = AppConstants.photoCategories
+        .where((c) => c['key'] != 'all')
+        .toList();
+
+    final listToUse = dynamicCategories.isEmpty
+        ? fallbackCategories
+        : dynamicCategories;
+
     final titleController = TextEditingController(text: photo.title);
     final priceController =
         TextEditingController(text: photo.price.toString());
     String category = photo.category;
+
+    // تأكد أن التصنيف الحالي موجود في القائمة
+    final isValidCategory =
+        listToUse.any((c) => c['key'] == category);
 
     await showDialog(
       context: context,
@@ -561,21 +521,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  initialValue: category,
+                  initialValue: isValidCategory ? category : null,
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'التصنيف',
                     prefixIcon: Icon(Icons.category),
                   ),
-                  items: AppConstants.photoCategories
-                      .where((c) => c['key'] != 'all')
+                  items: listToUse
                       .map(
                         (c) => DropdownMenuItem(
                           value: c['key'],
-                          child: Text(c['ar']!),
+                          child: Text(
+                            c['ar'] ?? c['en'] ?? c['key'] ?? '',
+                          ),
                         ),
                       )
                       .toList(),
-                  onChanged: (v) => setDialogState(() => category = v!),
+                  onChanged: (v) {
+                    if (v != null) {
+                      setDialogState(() => category = v);
+                    }
+                  },
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -604,23 +570,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     price: double.tryParse(priceController.text) ?? 0,
                   );
                   if (dialogContext.mounted) Navigator.pop(dialogContext);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('تم تحديث الصورة'),
-                        backgroundColor: AppTheme.success,
-                      ),
-                    );
-                  }
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('تم تحديث الصورة'),
+                      backgroundColor: AppTheme.success,
+                    ),
+                  );
                 } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(Helpers.errorMessage(e)),
-                        backgroundColor: AppTheme.error,
-                      ),
-                    );
-                  }
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(Helpers.errorMessage(e)),
+                      backgroundColor: AppTheme.error,
+                    ),
+                  );
                 }
               },
               child: const Text('حفظ'),
