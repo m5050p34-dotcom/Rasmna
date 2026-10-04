@@ -777,19 +777,14 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   }
 
   // ═══════════════════════════════════════════════
-  // 🔐 نافذة تغيير كلمة المرور
-  // ═══════════════════════════════════════════════
-  // ═══════════════════════════════════════════════
-  // 🔐 نافذة تغيير كلمة المرور (مع كلمة مرور الأدمن)
+  // 🔐 نافذة تغيير كلمة المرور (حقل واحد)
   // ═══════════════════════════════════════════════
   Future<void> _showChangePasswordDialog(ProfileModel user) async {
     final passwordController = TextEditingController();
-    final adminPasswordController = TextEditingController();
     final messenger = ScaffoldMessenger.of(context);
     final service = ProfileService();
 
-    bool obscureNew = true;
-    bool obscureAdmin = true;
+    bool obscurePassword = true;
     bool isLoading = false;
 
     await showDialog(
@@ -842,41 +837,22 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 1) كلمة المرور الجديدة للمستخدم
+                // حقل واحد فقط: كلمة المرور الجديدة
                 TextField(
                   controller: passwordController,
-                  obscureText: obscureNew,
+                  obscureText: obscurePassword,
                   enabled: !isLoading,
                   decoration: InputDecoration(
-                    labelText: 'كلمة المرور الجديدة للمستخدم',
+                    labelText: 'كلمة المرور الجديدة',
                     prefixIcon: const Icon(Icons.lock_outlined),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        obscureNew ? Icons.visibility_off : Icons.visibility,
-                      ),
-                      onPressed: () => setState(() => obscureNew = !obscureNew),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // 2) كلمة مرور الأدمن
-                TextField(
-                  controller: adminPasswordController,
-                  obscureText: obscureAdmin,
-                  enabled: !isLoading,
-                  decoration: InputDecoration(
-                    labelText: 'كلمة مرور المستخدم الحالية',
-                    prefixIcon: const Icon(Icons.lock_outlined),
-                    helperText: 'كلمة مرور المستخدم الحالية (للتحقق)',
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        obscureAdmin
+                        obscurePassword
                             ? Icons.visibility_off
                             : Icons.visibility,
                       ),
                       onPressed: () =>
-                          setState(() => obscureAdmin = !obscureAdmin),
+                          setState(() => obscurePassword = !obscurePassword),
                     ),
                   ),
                 ),
@@ -899,7 +875,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'التحقق من كلمة المرور الحالية ثم التعيين',
+                          '6 أحرف على الأقل — سيتم التعيين فوراً',
                           style: TextStyle(fontSize: 11),
                         ),
                       ),
@@ -922,24 +898,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   ? null
                   : () async {
                       final newPassword = passwordController.text.trim();
-                      final adminPassword = adminPasswordController.text;
 
-                      // تحقق من كلمة المرور الجديدة
                       if (newPassword.length < 6) {
                         messenger.showSnackBar(
                           const SnackBar(
                             content: Text('كلمة المرور قصيرة جداً (6+)'),
-                            backgroundColor: AppTheme.error,
-                          ),
-                        );
-                        return;
-                      }
-
-                      // تحقق من كلمة مرور الأدمن
-                      if (adminPassword.isEmpty) {
-                        messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text('أدخل كلمة مرور المستخدم الحالية'),
                             backgroundColor: AppTheme.error,
                           ),
                         );
@@ -952,7 +915,6 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                         await service.adminChangePassword(
                           userId: user.id,
                           newPassword: newPassword,
-                          userCurrentPassword: adminPassword,
                         );
 
                         if (dialogContext.mounted) {
@@ -991,7 +953,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                       ),
                     )
                   : const Icon(Icons.check, size: 18),
-              label: Text(isLoading ? 'جارٍ...' : 'تغيير'),
+              label: Text(isLoading ? 'جارٍ...' : 'تعيين'),
             ),
           ],
         ),

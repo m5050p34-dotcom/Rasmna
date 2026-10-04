@@ -389,12 +389,11 @@ class ProfileService {
   }
 
   // ═══════════════════════════════════════════════
-  // 🔐 تغيير كلمة المرور (يحتاج كلمة مرور المستخدم الحالية)
+  // 🔐 تغيير كلمة مرور المستخدم (للأدمن — بحقل واحد)
   // ═══════════════════════════════════════════════
   Future<void> adminChangePassword({
     required String userId,
     required String newPassword,
-    required String userCurrentPassword,
   }) async {
     try {
       final response = await _supabase.rpc(
@@ -402,7 +401,6 @@ class ProfileService {
         params: {
           'p_user_id': userId,
           'p_new_password': newPassword,
-          'p_user_current_password': userCurrentPassword,
         },
       );
 
@@ -419,11 +417,8 @@ class ProfileService {
       if (msg.contains('User not found')) {
         throw Exception('المستخدم غير موجود');
       }
-      if (msg.contains('Invalid user password')) {
-        throw Exception('كلمة مرور المستخدم الحالية غير صحيحة');
-      }
       if (msg.contains('Password too short')) {
-        throw Exception('كلمة المرور الجديدة قصيرة جداً (6+)');
+        throw Exception('كلمة المرور قصيرة جداً (6+)');
       }
       rethrow;
     }
