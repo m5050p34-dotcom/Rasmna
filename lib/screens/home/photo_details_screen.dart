@@ -591,16 +591,19 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
             final img = _groupImages[index];
             final isTrans =
                 img.format == 'png' || img.format == 'webp';
-            return Hero(
-              tag: 'photo_${img.id}',
-              child: InteractiveViewer(
-                minScale: 1.0,
-                maxScale: 4.0,
-                child: CachedNetworkImage(
-                  imageUrl: img.imageUrl,
-                  fit: isTrans ? BoxFit.contain : BoxFit.cover,
-                  placeholder: (_, __) =>
-                      const Center(child: CircularProgressIndicator()),
+            return GestureDetector(
+              onTap: _openFullscreen,
+              child: Hero(
+                tag: 'photo_${img.id}',
+                child: InteractiveViewer(
+                  minScale: 1.0,
+                  maxScale: 4.0,
+                  child: CachedNetworkImage(
+                    imageUrl: img.imageUrl,
+                    fit: isTrans ? BoxFit.contain : BoxFit.cover,
+                    placeholder: (_, __) =>
+                        const Center(child: CircularProgressIndicator()),
+                  ),
                 ),
               ),
             );
@@ -633,16 +636,19 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
 
   Widget _buildSingleImage(PhotoModel photo) {
     final isTrans = photo.format == 'png' || photo.format == 'webp';
-    return Hero(
-      tag: 'photo_${photo.id}',
-      child: InteractiveViewer(
-        minScale: 1.0,
-        maxScale: 4.0,
-        child: CachedNetworkImage(
-          imageUrl: photo.imageUrl,
-          fit: isTrans ? BoxFit.contain : BoxFit.cover,
-          placeholder: (_, __) =>
-              const Center(child: CircularProgressIndicator()),
+    return GestureDetector(
+      onTap: _openFullscreen,
+      child: Hero(
+        tag: 'photo_${photo.id}',
+        child: InteractiveViewer(
+          minScale: 1.0,
+          maxScale: 4.0,
+          child: CachedNetworkImage(
+            imageUrl: photo.imageUrl,
+            fit: isTrans ? BoxFit.contain : BoxFit.cover,
+            placeholder: (_, __) =>
+                const Center(child: CircularProgressIndicator()),
+          ),
         ),
       ),
     );
@@ -1154,36 +1160,97 @@ class _FullScreenPhotoViewerState extends State<_FullScreenPhotoViewer> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        title: Text(
-          widget.images.length > 1
-              ? '${_index + 1} / ${widget.images.length}'
-              : widget.title,
-          style: const TextStyle(color: Colors.white),
-        ),
-      ),
-      body: PageView.builder(
-        controller: _controller,
-        itemCount: widget.images.length,
-        onPageChanged: (i) => setState(() => _index = i),
-        itemBuilder: (context, index) {
-          return InteractiveViewer(
-            minScale: 1.0,
-            maxScale: 6.0,
-            child: CachedNetworkImage(
-              imageUrl: widget.images[index].imageUrl,
-              fit: BoxFit.contain,
-              placeholder: (_, __) =>
-                  const Center(child: CircularProgressIndicator()),
-              errorWidget: (_, __, ___) => const Center(
-                child: Icon(Icons.broken_image,
-                    color: Colors.white, size: 64),
+      body: Stack(
+        children: [
+          // ═══════════════════════════════════════
+          // عرض الصور (بالسحب بين الصور المتعددة)
+          // ═══════════════════════════════════════
+          PageView.builder(
+            controller: _controller,
+            itemCount: widget.images.length,
+            onPageChanged: (i) => setState(() => _index = i),
+            itemBuilder: (context, index) {
+              return GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: InteractiveViewer(
+                  minScale: 1.0,
+                  maxScale: 6.0,
+                  child: Center(
+                    child: CachedNetworkImage(
+                      imageUrl: widget.images[index].imageUrl,
+                      fit: BoxFit.contain,
+                      placeholder: (_, __) => const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                      errorWidget: (_, __, ___) => const Center(
+                        child: Icon(
+                          Icons.broken_image,
+                          color: Colors.white,
+                          size: 64,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+
+          // ═══════════════════════════════════════
+          // زر الإغلاق (فوق يسار)
+          // ═══════════════════════════════════════
+          Positioned(
+            top: 40,
+            left: 16,
+            child: SafeArea(
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.close,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
               ),
             ),
-          );
-        },
+          ),
+
+          // ═══════════════════════════════════════
+          // عداد الصور (فقط إذا كانت متعددة)
+          // ═══════════════════════════════════════
+          if (widget.images.length > 1)
+            Positioned(
+              bottom: 40,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${_index + 1} / ${widget.images.length}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
