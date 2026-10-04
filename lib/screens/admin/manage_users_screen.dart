@@ -779,11 +779,17 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   // ═══════════════════════════════════════════════
   // 🔐 نافذة تغيير كلمة المرور
   // ═══════════════════════════════════════════════
+  // ═══════════════════════════════════════════════
+  // 🔐 نافذة تغيير كلمة المرور (مع كلمة مرور الأدمن)
+  // ═══════════════════════════════════════════════
   Future<void> _showChangePasswordDialog(ProfileModel user) async {
     final passwordController = TextEditingController();
+    final adminPasswordController = TextEditingController();
     final messenger = ScaffoldMessenger.of(context);
+    final service = ProfileService();
 
-    bool obscure = true;
+    bool obscureNew = true;
+    bool obscureAdmin = true;
     bool isLoading = false;
 
     await showDialog(
@@ -794,6 +800,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
+          titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
           title: Row(
             children: [
               Container(
@@ -829,47 +837,79 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
               ),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: passwordController,
-                obscureText: obscure,
-                enabled: !isLoading,
-                decoration: InputDecoration(
-                  labelText: 'كلمة المرور الجديدة',
-                  prefixIcon: const Icon(Icons.lock_outlined),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      obscure ? Icons.visibility_off : Icons.visibility,
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 1) كلمة المرور الجديدة للمستخدم
+                TextField(
+                  controller: passwordController,
+                  obscureText: obscureNew,
+                  enabled: !isLoading,
+                  decoration: InputDecoration(
+                    labelText: 'كلمة المرور الجديدة للمستخدم',
+                    prefixIcon: const Icon(Icons.lock_outlined),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscureNew ? Icons.visibility_off : Icons.visibility,
+                      ),
+                      onPressed: () => setState(() => obscureNew = !obscureNew),
                     ),
-                    onPressed: () => setState(() => obscure = !obscure),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppTheme.warning.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.info_outline,
-                        color: AppTheme.warning, size: 18),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '6 أحرف على الأقل',
-                        style: TextStyle(fontSize: 12),
+                const SizedBox(height: 12),
+
+                // 2) كلمة مرور الأدمن
+                TextField(
+                  controller: adminPasswordController,
+                  obscureText: obscureAdmin,
+                  enabled: !isLoading,
+                  decoration: InputDecoration(
+                    labelText: 'كلمة مرور الأدمن',
+                    prefixIcon: const Icon(Icons.admin_panel_settings),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscureAdmin
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                       ),
+                      onPressed: () =>
+                          setState(() => obscureAdmin = !obscureAdmin),
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+
+                // تنبيه
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.warning.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppTheme.warning.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.info_outline,
+                          color: AppTheme.warning, size: 18),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '6 أحرف على الأقل — سيتم التغيير فوراً',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
+          actionsPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           actions: [
             TextButton(
               onPressed:
@@ -881,10 +921,24 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   ? null
                   : () async {
                       final newPassword = passwordController.text.trim();
+                      final adminPassword = adminPasswordController.text;
+
+                      // تحقق من كلمة المرور الجديدة
                       if (newPassword.length < 6) {
                         messenger.showSnackBar(
                           const SnackBar(
-                            content: Text('كلمة المرور قصيرة جداً'),
+                            content: Text('كلمة المرور قصيرة جداً (6+)'),
+                            backgroundColor: AppTheme.error,
+                          ),
+                        );
+                        return;
+                      }
+
+                      // تحقق من كلمة مرور الأدمن
+                      if (adminPassword.isEmpty) {
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('أدخل كلمة مرور الأدمن'),
                             backgroundColor: AppTheme.error,
                           ),
                         );
@@ -894,45 +948,34 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                       setState(() => isLoading = true);
 
                       try {
-                        final response = await Supabase.instance.client
-                            .functions
-                            .invoke('admin-change-password', body: {
-                          'user_id': user.id,
-                          'new_password': newPassword,
-                        });
+                        await service.adminChangePassword(
+                          userId: user.id,
+                          newPassword: newPassword,
+                          adminPassword: adminPassword,
+                        );
 
                         if (dialogContext.mounted) {
                           Navigator.pop(dialogContext);
                         }
 
-                        if (response.status == 200) {
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                '✅ تم تغيير كلمة مرور ${user.username}',
-                              ),
-                              backgroundColor: AppTheme.success,
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              '✅ تم تغيير كلمة مرور ${user.username}',
                             ),
-                          );
-                        } else {
-                          final error =
-                              response.data?['error'] ?? 'خطأ غير معروف';
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content: Text('فشل: $error'),
-                              backgroundColor: AppTheme.error,
-                            ),
-                          );
-                        }
+                            backgroundColor: AppTheme.success,
+                            duration: const Duration(seconds: 3),
+                          ),
+                        );
                       } catch (e) {
                         if (dialogContext.mounted) {
                           Navigator.pop(dialogContext);
                         }
                         messenger.showSnackBar(
                           SnackBar(
-                            content: Text('خطأ: $e'),
+                            content: Text(Helpers.errorMessage(e)),
                             backgroundColor: AppTheme.error,
-                            duration: const Duration(seconds: 5),
+                            duration: const Duration(seconds: 4),
                           ),
                         );
                       }

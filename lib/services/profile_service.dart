@@ -402,6 +402,64 @@ class ProfileService {
   }
 
 
+
+  // ═══════════════════════════════════════════════
+  // 🔐 تغيير كلمة مرور المستخدم (للأدمن)
+  // ═══════════════════════════════════════════════
+  Future<void> adminChangePassword({
+    required String userId,
+    required String newPassword,
+    required String adminPassword,
+  }) async {
+    // 1) التحقق من كلمة مرور الأدمن
+    final currentAdmin = _supabase.auth.currentUser;
+    if (currentAdmin == null || currentAdmin.email == null) {
+      throw Exception('لم يتم العثور على حساب الأدمن');
+    }
+
+    try {
+      await _supabase.auth.signInWithPassword(
+        email: currentAdmin.email!,
+        password: adminPassword,
+      );
+      debugPrint('OK: admin verified');
+    } on AuthException catch (e) {
+      if (e.message.toLowerCase().contains('invalid')) {
+        throw Exception('كلمة مرور الأدمن غير صحيحة');
+      }
+      rethrow;
+    }
+
+    // 2) استدعاء RPC
+    try {
+      final response = await _supabase.rpc(
+        'admin_change_password',
+        params: {
+          'p_user_id': userId,
+          'p_new_password': newPassword,
+        },
+      );
+
+      if (response is Map && response['success'] == true) {
+        debugPrint('OK: password changed for user');
+      } else {
+        throw Exception('فشل تغيير كلمة المرور');
+      }
+    } on PostgrestException catch (e) {
+      final msg = e.message;
+      if (msg.contains('Admin only')) {
+        throw Exception('هذه العملية للأدمن فقط');
+      }
+      if (msg.contains('User not found')) {
+        throw Exception('المستخدم غير موجود');
+      }
+      if (msg.contains('too short')) {
+        throw Exception('كلمة المرور قصيرة جداً (6 أحرف على الأقل)');
+      }
+      rethrow;
+    }
+  }
+
 }
 
 // ═══════════════════════════════════════════════
