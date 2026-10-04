@@ -245,19 +245,33 @@ class PhotoCard extends StatelessWidget {
                           // ✅ الأيقونة (إن وُجدت)
                           if (_ownerHasIcon) ...[
                             SizedBox(
-                              width: 18,
-                              height: 18,
+                              width: 20,
+                              height: 20,
                               child: ClipOval(
-                                child: CachedNetworkImage(
-                                  imageUrl: photo.owner!.activeIconUrl!,
+                                child: Image.network(
+                                  photo.owner!.activeIconUrl!,
                                   fit: BoxFit.cover,
-                                  fadeInDuration: Duration.zero,
-                                  placeholder: (_, __) => _iconFallback(),
-                                  errorWidget: (_, __, ___) => _iconFallback(),
+                                  width: 20,
+                                  height: 20,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    color: Colors.red,
+                                    alignment: Alignment.center,
+                                    child: const Icon(Icons.close,
+                                        size: 12, color: Colors.white),
+                                  ),
+                                  loadingBuilder: (_, child, progress) {
+                                    if (progress == null) return child;
+                                    return Container(
+                                      color: Colors.yellow,
+                                      alignment: Alignment.center,
+                                      child: const Icon(Icons.sync,
+                                          size: 12, color: Colors.black),
+                                    );
+                                  },
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 5),
+                            const SizedBox(width: 4),
                           ],
 
                           // Name
@@ -445,16 +459,4 @@ class PhotoCard extends StatelessWidget {
     );
   }
 
-  // ✅ بديل عند فشل تحميل الأيقونة — مربع بنفسجي صغير
-  Widget _iconFallback() {
-    return Container(
-      color: AppTheme.secondary.withValues(alpha: 0.4),
-      alignment: Alignment.center,
-      child: const Icon(
-        Icons.stars,
-        size: 10,
-        color: Colors.white,
-      ),
-    );
-  }
 }
