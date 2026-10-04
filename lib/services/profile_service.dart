@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../models/photo_model.dart';
@@ -258,15 +259,31 @@ class ProfileService {
   // ═══════════════════════════════════════════════
   // 📧 تغيير البريد (مع كلمة المرور — فوري)
   // ═══════════════════════════════════════════════
+  // ═══════════════════════════════════════════════
+  // 📧 تغيير البريد (مع كلمة المرور — فوري)
+  //    ✅ الحل: تحديث profiles أولاً ثم auth
+  // ═══════════════════════════════════════════════
+  // ═══════════════════════════════════════════════
+  // 📧 تغيير البريد (مع كلمة المرور — فوري)
+  //    ✅ الحل: تحديث profiles أولاً ثم auth
+  // ═══════════════════════════════════════════════
   Future<void> changeMyEmailWithPassword({
     required String currentEmail,
     required String password,
     required String newEmail,
   }) async {
-    // 1) التحقق من كلمة المرور بمحاولة تسجيل دخول
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) {
+      throw Exception('لم يتم العثور على المستخدم، أعد تسجيل الدخول');
+    }
+
+    final normalizedNewEmail = newEmail.trim().toLowerCase();
+    final normalizedCurrentEmail = currentEmail.trim().toLowerCase();
+
+    // 1) تحقق من كلمة المرور
     try {
       await _supabase.auth.signInWithPassword(
-        email: currentEmail,
+        email: normalizedCurrentEmail,
         password: password,
       );
     } on AuthException catch (e) {
@@ -276,12 +293,41 @@ class ProfileService {
       rethrow;
     }
 
-    // 2) تحديث البريد (فوري بدون تأكيد إذا كان معطلاً)
+    // 2) تحديث profiles أولاً (الجلسة صالحة الآن)
+    try {
+      final result = await _supabase
+          .from('profiles')
+          .update({'email': normalizedNewEmail})
+          .eq('id', userId)
+          .select();
+
+      if ((result as List).isEmpty) {
+        throw Exception('فشل تحديث البروفايل — تحقق من صلاحياتك');
+      }
+      debugPrint('OK: profiles.email updated');
+    } catch (e) {
+      debugPrint('FAIL: profiles update: $e');
+      throw Exception('فشل تحديث البروفايل: $e');
+    }
+
+    // 3) تحديث auth email أخيراً
     try {
       await _supabase.auth.updateUser(
-        UserAttributes(email: newEmail.trim()),
+        UserAttributes(email: normalizedNewEmail),
       );
+      debugPrint('OK: auth.email updated');
     } on AuthException catch (e) {
+      // rollback
+      try {
+        await _supabase
+            .from('profiles')
+            .update({'email': normalizedCurrentEmail})
+            .eq('id', userId);
+        debugPrint('ROLLBACK: profiles.email restored');
+      } catch (rollbackError) {
+        debugPrint('WARN: rollback failed: $rollbackError');
+      }
+
       final msg = e.message.toLowerCase();
       if (msg.contains('already') || msg.contains('registered')) {
         throw Exception('هذا البريد مسجل بالفعل');
@@ -289,16 +335,10 @@ class ProfileService {
       if (msg.contains('invalid') || msg.contains('email')) {
         throw Exception('صيغة البريد غير صحيحة');
       }
+      if (msg.contains('rate') || msg.contains('too many')) {
+        throw Exception('محاولات كثيرة — انتظر قليلاً');
+      }
       rethrow;
-    }
-
-    // 3) مزامنة البريد في جدول profiles يدوياً كاحتياط
-    final userId = _supabase.auth.currentUser?.id;
-    if (userId != null) {
-      await _supabase
-          .from('profiles')
-          .update({'email': newEmail.trim()})
-          .eq('id', userId);
     }
   }
 
