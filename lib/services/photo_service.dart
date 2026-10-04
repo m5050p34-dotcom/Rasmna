@@ -82,47 +82,34 @@ class PhotoService {
     String sortBy = 'newest',
     int limit = 100,
   }) async {
-    dynamic query = _supabase
-        .from('photos')
-        .select(
-            '*, profiles:user_id(id, username, email, avatar_url, is_admin)')
-        .or('is_group_cover.eq.true,group_id.is.null');
+    // ✅ استخدام RPC — يتجاوز مشاكل PostgREST cache
+    final response = await _supabase.rpc(
+      'get_photos_with_owners',
+      params: {
+        'p_category': category,
+        'p_search': searchQuery,
+        'p_sort_by': sortBy,
+        'p_limit': limit,
+      },
+    );
 
-    if (category != null && category.isNotEmpty && category != 'all') {
-      query = query.eq('category', category);
-    }
-
-    if (searchQuery != null && searchQuery.isNotEmpty) {
-      query = query.ilike('title', '%$searchQuery%');
-    }
-
-    switch (sortBy) {
-      case 'oldest':
-        query = query.order('created_at', ascending: true);
-        break;
-      case 'price_high':
-        query = query.order('price', ascending: false);
-        break;
-      case 'price_low':
-        query = query.order('price', ascending: true);
-        break;
-      case 'newest':
-      default:
-        query = query.order('created_at', ascending: false);
-    }
-
-    final response = await query.limit(limit);
-
-    return (response as List)
-        .map((e) => PhotoModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return (response as List).map((e) {
+      final map = Map<String, dynamic>.from(e as Map);
+      // نُعيد شكل JSON المشابه للـ JOIN السابق
+      final ownerData = map.remove('owner_data');
+      return PhotoModel.fromJson({
+        ...map,
+        'profiles': ownerData,
+      });
+    }).toList();
   }
+
 
   Future<List<PhotoModel>> getUserPhotos(String userId) async {
     final response = await _supabase
         .from('photos')
         .select(
-            '*, profiles:user_id(id, username, email, avatar_url, is_admin)')
+            '*, profiles:user_id(id, username, email, avatar_url, is_admin, active_icon_url, active_icon_expires_at)')
         .eq('user_id', userId)
         .or('is_group_cover.eq.true,group_id.is.null')
         .order('created_at', ascending: false);
@@ -206,7 +193,7 @@ class PhotoService {
             'is_group_cover': isCover,
           })
           .select(
-              '*, profiles:user_id(id, username, email, avatar_url, is_admin)')
+              '*, profiles:user_id(id, username, email, avatar_url, is_admin, active_icon_url, active_icon_expires_at)')
           .single();
 
       results.add(PhotoModel.fromJson(response));
@@ -235,7 +222,7 @@ class PhotoService {
     final response = await _supabase
         .from('photos')
         .select(
-            '*, profiles:user_id(id, username, email, avatar_url, is_admin)')
+            '*, profiles:user_id(id, username, email, avatar_url, is_admin, active_icon_url, active_icon_expires_at)')
         .eq('group_id', groupId)
         .order('group_order', ascending: true);
 
@@ -263,7 +250,7 @@ class PhotoService {
         .update(updates)
         .eq('id', photoId)
         .select(
-            '*, profiles:user_id(id, username, email, avatar_url, is_admin)')
+            '*, profiles:user_id(id, username, email, avatar_url, is_admin, active_icon_url, active_icon_expires_at)')
         .single();
 
     return PhotoModel.fromJson(response);
