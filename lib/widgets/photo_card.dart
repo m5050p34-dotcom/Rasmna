@@ -274,14 +274,14 @@ class PhotoCard extends StatelessWidget {
                             const SizedBox(width: 4),
                           ],
 
-                          // Name
+                          // Name + DEBUG URL
                           Expanded(
                             child: Text(
-                              photo.ownerName,
+                              '${photo.ownerName} [${photo.owner?.activeIconUrl == null ? "NULL" : "HAS_URL"}]',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 9,
                                 fontWeight: FontWeight.w600,
                                 color: isDark
                                     ? Colors.white70
