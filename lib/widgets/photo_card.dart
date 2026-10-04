@@ -38,12 +38,6 @@ class PhotoCard extends StatelessWidget {
     final hasAvatar = photo.owner?.avatarUrl != null &&
         photo.owner!.avatarUrl!.isNotEmpty;
 
-    // 🔍 Log للتشخيص
-    debugPrint(
-      '🖼️ CARD: ${photo.title} | owner=${photo.owner?.username} | '
-      'iconUrl=${photo.owner?.activeIconUrl} | hasIcon=$_ownerHasIcon',
-    );
-
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
@@ -245,29 +239,16 @@ class PhotoCard extends StatelessWidget {
                           // ✅ الأيقونة (إن وُجدت)
                           if (_ownerHasIcon) ...[
                             SizedBox(
-                              width: 20,
-                              height: 20,
+                              width: 22,
+                              height: 22,
                               child: ClipOval(
-                                child: Image.network(
-                                  photo.owner!.activeIconUrl!,
+                                child: CachedNetworkImage(
+                                  imageUrl: photo.owner!.activeIconUrl!,
                                   fit: BoxFit.cover,
-                                  width: 20,
-                                  height: 20,
-                                  errorBuilder: (_, __, ___) => Container(
-                                    color: Colors.red,
-                                    alignment: Alignment.center,
-                                    child: const Icon(Icons.close,
-                                        size: 12, color: Colors.white),
-                                  ),
-                                  loadingBuilder: (_, child, progress) {
-                                    if (progress == null) return child;
-                                    return Container(
-                                      color: Colors.yellow,
-                                      alignment: Alignment.center,
-                                      child: const Icon(Icons.sync,
-                                          size: 12, color: Colors.black),
-                                    );
-                                  },
+                                  placeholder: (_, __) =>
+                                      const SizedBox.shrink(),
+                                  errorWidget: (_, __, ___) =>
+                                      const SizedBox.shrink(),
                                 ),
                               ),
                             ),
@@ -277,11 +258,11 @@ class PhotoCard extends StatelessWidget {
                           // Name + DEBUG URL
                           Expanded(
                             child: Text(
-                              '${photo.ownerName} [${photo.owner?.activeIconUrl == null ? "NULL" : "HAS_URL"}]',
+                              photo.ownerName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 9,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w600,
                                 color: isDark
                                     ? Colors.white70
