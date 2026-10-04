@@ -276,14 +276,12 @@ class _PhotographerScreenState extends State<PhotographerScreen> {
                           : null,
                     ),
                     const SizedBox(height: 12),
-                    Text(
-                      profile.username,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+
+                    // ═══════════════════════════════════════
+                    // ✅ الاسم + الأيقونة النشطة (بدون إطار)
+                    // ═══════════════════════════════════════
+                    _buildNameWithIcon(profile),
+
                     if (profile.bio != null && profile.bio!.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Padding(
@@ -452,6 +450,63 @@ class _PhotographerScreenState extends State<PhotographerScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════
+  // ✅ بناء الاسم مع الأيقونة النشطة (بدون إطار)
+  // ═══════════════════════════════════════════════
+  Widget _buildNameWithIcon(ProfileModel profile) {
+    final hasIcon = profile.activeIconUrl != null &&
+        profile.activeIconUrl!.isNotEmpty &&
+        profile.activeIconExpiresAt != null &&
+        profile.activeIconExpiresAt!.isAfter(DateTime.now());
+
+    final expiringSoon =
+        hasIcon && profile.activeIconDaysRemaining <= 3;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // ─── الأيقونة (يمين الاسم بصرياً في RTL) ───
+        if (hasIcon) ...[
+          Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: Tooltip(
+              message: expiringSoon
+                  ? 'الآيقونة ستنتهي خلال ${profile.activeIconDaysRemaining} يوم'
+                  : 'آيقونة نشطة • ${profile.activeIconDaysRemaining} يوم متبقٍ',
+              child: SizedBox(
+                width: 34,
+                height: 34,
+                child: ClipOval(
+                  child: CachedNetworkImage(
+                    imageUrl: profile.activeIconUrl!,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => const SizedBox.shrink(),
+                    errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+
+        // ─── الاسم ───
+        Flexible(
+          child: Text(
+            profile.username,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 
