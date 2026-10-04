@@ -26,11 +26,23 @@ class PhotoCard extends StatelessWidget {
   bool get _isTransparent =>
       photo.format == 'png' || photo.format == 'webp';
 
+  // ✅ التحقق المبسّط: يكفي وجود رابط غير فارغ
+  bool get _ownerHasIcon {
+    final url = photo.owner?.activeIconUrl;
+    return url != null && url.isNotEmpty;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final hasAvatar = photo.owner?.avatarUrl != null &&
         photo.owner!.avatarUrl!.isNotEmpty;
+
+    // 🔍 Log للتشخيص
+    debugPrint(
+      '🖼️ CARD: ${photo.title} | owner=${photo.owner?.username} | '
+      'iconUrl=${photo.owner?.activeIconUrl} | hasIcon=$_ownerHasIcon',
+    );
 
     return Container(
       clipBehavior: Clip.antiAlias,
@@ -53,13 +65,12 @@ class PhotoCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ═══════════════════════════════════
-              // الصورة (Top)
+              // الصورة
               // ═══════════════════════════════════
               Expanded(
                 flex: 5,
                 child: Stack(
                   children: [
-                    // ─── خلفية رقعة الشطرنج للصور الشفافة ───
                     Positioned.fill(
                       child: Container(
                         decoration: BoxDecoration(
@@ -91,8 +102,6 @@ class PhotoCard extends StatelessWidget {
                         ),
                       ),
                     ),
-
-                    // ─── الصورة ───
                     Positioned.fill(
                       child: CachedNetworkImage(
                         imageUrl: photo.imageUrl,
@@ -114,7 +123,38 @@ class PhotoCard extends StatelessWidget {
                       ),
                     ),
 
-                    // ─── شارة PNG (يمين أعلى) ───
+                    // شارة "متعددة"
+                    if (photo.isPartOfGroup)
+                      Positioned(
+                        bottom: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.7),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.collections,
+                                  color: Colors.white, size: 11),
+                              SizedBox(width: 3),
+                              Text(
+                                'متعددة',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                    // شارة PNG
                     if (_isTransparent)
                       Positioned(
                         top: 10,
@@ -157,7 +197,7 @@ class PhotoCard extends StatelessWidget {
               ),
 
               // ═══════════════════════════════════
-              // البيانات (Bottom)
+              // البيانات
               // ═══════════════════════════════════
               Expanded(
                 flex: 4,
@@ -167,7 +207,7 @@ class PhotoCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // ─── الصف الأول: العنوان ───
+                      // ─── العنوان ───
                       Text(
                         photo.title,
                         maxLines: 1,
@@ -181,42 +221,46 @@ class PhotoCard extends StatelessWidget {
                         ),
                       ),
 
-                      // ─── الصف الثاني: صورة المستخدم + الاسم ───
+                      // ─── الصف: Avatar + Icon + Name ───
                       Row(
                         children: [
-                          Container(
+                          // Avatar
+                          SizedBox(
                             width: 20,
                             height: 20,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: const LinearGradient(
-                                colors: [
-                                  AppTheme.primary,
-                                  AppTheme.secondary,
-                                ],
-                              ),
-                              border: Border.all(
-                                color: isDark
-                                    ? const Color(0xFF1A1A2E)
-                                    : Colors.white,
-                                width: 1.5,
-                              ),
-                            ),
-                            padding: const EdgeInsets.all(1),
                             child: ClipOval(
                               child: hasAvatar
                                   ? CachedNetworkImage(
                                       imageUrl: photo.owner!.avatarUrl!,
                                       fit: BoxFit.cover,
-                                      placeholder: (_, __) =>
-                                          _avatarInitial(isDark),
+                                      placeholder: (_, __) => _avatarInitial(),
                                       errorWidget: (_, __, ___) =>
-                                          _avatarInitial(isDark),
+                                          _avatarInitial(),
                                     )
-                                  : _avatarInitial(isDark),
+                                  : _avatarInitial(),
                             ),
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 5),
+
+                          // ✅ الأيقونة (إن وُجدت)
+                          if (_ownerHasIcon) ...[
+                            SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: ClipOval(
+                                child: CachedNetworkImage(
+                                  imageUrl: photo.owner!.activeIconUrl!,
+                                  fit: BoxFit.cover,
+                                  fadeInDuration: Duration.zero,
+                                  placeholder: (_, __) => _iconFallback(),
+                                  errorWidget: (_, __, ___) => _iconFallback(),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                          ],
+
+                          // Name
                           Expanded(
                             child: Text(
                               photo.ownerName,
@@ -234,12 +278,9 @@ class PhotoCard extends StatelessWidget {
                         ],
                       ),
 
-                      // ═══════════════════════════════════
-                      // الصف الثالث: السعر + زر القلب
-                      // ═══════════════════════════════════
+                      // ─── الصف: السعر + القلب ───
                       Row(
                         children: [
-                          // ─── شارة السعر ───
                           Expanded(
                             child: Container(
                               padding: const EdgeInsets.symmetric(
@@ -258,16 +299,6 @@ class PhotoCard extends StatelessWidget {
                                         ],
                                 ),
                                 borderRadius: BorderRadius.circular(10),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: (photo.isFree
-                                            ? AppTheme.success
-                                            : AppTheme.primary)
-                                        .withValues(alpha: 0.25),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -297,8 +328,6 @@ class PhotoCard extends StatelessWidget {
                               ),
                             ),
                           ),
-
-                          // ─── ❤️ زر المفضلة (بجانب السعر) ───
                           if (showFavoriteButton) ...[
                             const SizedBox(width: 6),
                             Selector<FavoritesProvider, bool>(
@@ -367,8 +396,6 @@ class PhotoCard extends StatelessWidget {
                               },
                             ),
                           ],
-
-                          // ─── أزرار التعديل/الحذف (للمالك فقط) ───
                           if (onEdit != null || onDelete != null) ...[
                             if (onEdit != null)
                               IconButton(
@@ -403,17 +430,30 @@ class PhotoCard extends StatelessWidget {
     );
   }
 
-  Widget _avatarInitial(bool isDark) {
+  Widget _avatarInitial() {
     return Container(
-      color: Colors.white,
+      color: AppTheme.primary,
       alignment: Alignment.center,
       child: Text(
         photo.owner?.initial ?? '?',
         style: const TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.bold,
-          color: AppTheme.primary,
+          color: Colors.white,
         ),
+      ),
+    );
+  }
+
+  // ✅ بديل عند فشل تحميل الأيقونة — مربع بنفسجي صغير
+  Widget _iconFallback() {
+    return Container(
+      color: AppTheme.secondary.withValues(alpha: 0.4),
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.stars,
+        size: 10,
+        color: Colors.white,
       ),
     );
   }
