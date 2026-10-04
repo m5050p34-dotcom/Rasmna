@@ -350,7 +350,7 @@ class ProfileService {
     required String newEmail,
     required String adminPassword,
   }) async {
-    // 1) التحقق من هوية الأدمن
+    // 1) التحقق من كلمة مرور الأدمن
     final currentAdmin = _supabase.auth.currentUser;
     if (currentAdmin == null || currentAdmin.email == null) {
       throw Exception('لم يتم العثور على حساب الأدمن');
@@ -361,7 +361,7 @@ class ProfileService {
         email: currentAdmin.email!,
         password: adminPassword,
       );
-      debugPrint('OK: admin password verified');
+      debugPrint('OK: admin verified');
     } on AuthException catch (e) {
       if (e.message.toLowerCase().contains('invalid')) {
         throw Exception('كلمة مرور الأدمن غير صحيحة');
@@ -369,50 +369,35 @@ class ProfileService {
       rethrow;
     }
 
+    // 2) استدعاء RPC (بدل Edge Function)
     final normalizedEmail = newEmail.trim().toLowerCase();
 
-    // 2) استدعاء Edge Function لتحديث auth.users.email
     try {
-      final response = await _supabase.functions.invoke(
-        'admin-change-email',
-        body: {
-          'user_id': userId,
-          'new_email': normalizedEmail,
+      final response = await _supabase.rpc(
+        'admin_change_email',
+        params: {
+          'p_user_id': userId,
+          'p_new_email': normalizedEmail,
         },
       );
 
-      if (response.status != 200) {
-        final error = response.data?['error'] ?? 'فشل تغيير البريد';
-        throw Exception(error);
+      if (response is Map && response['success'] == true) {
+        debugPrint('OK: email changed to $normalizedEmail');
+      } else {
+        throw Exception('فشل تغيير البريد');
       }
-      debugPrint('OK: auth.users.email updated via Edge Function');
-    } catch (e) {
-      debugPrint('FAIL: Edge Function error: $e');
+    } on PostgrestException catch (e) {
+      final msg = e.message;
+      if (msg.contains('Admin only')) {
+        throw Exception('هذه العملية للأدمن فقط');
+      }
+      if (msg.contains('User not found')) {
+        throw Exception('المستخدم غير موجود');
+      }
+      if (msg.contains('Email already in use')) {
+        throw Exception('هذا البريد مستخدم بالفعل');
+      }
       rethrow;
-    }
-
-    // 3) تحديث profiles.email
-    try {
-      final result = await _supabase
-          .from('profiles')
-          .update({'email': normalizedEmail})
-          .eq('id', userId)
-          .select();
-
-      if ((result as List).isEmpty) {
-        throw Exception('فشل تحديث profiles.email');
-      }
-      debugPrint('OK: profiles.email updated');
-    } catch (e) {
-      debugPrint('FAIL: profiles update: $e');
-      // auth نجح، profiles فشل — نحاول مرة أخرى بالطريقة القديمة
-      try {
-        await _supabase
-            .from('profiles')
-            .update({'email': normalizedEmail})
-            .eq('id', userId);
-      } catch (_) {}
-      throw Exception('تم تحديث المصادقة لكن فشل البروفايل — أعد المحاولة');
     }
   }
 
