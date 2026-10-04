@@ -511,14 +511,19 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   // ═══════════════════════════════════════════════
   // 📧 نافذة تغيير البريد (للأدمن)
   // ═══════════════════════════════════════════════
+  // ═══════════════════════════════════════════════
+  // 📧 نافذة تغيير البريد (للأدمن — مع كلمة المرور)
+  // ═══════════════════════════════════════════════
   Future<void> _showChangeEmailDialog(
     ProfileModel user,
     UserProvider provider,
   ) async {
     final emailController = TextEditingController();
+    final passwordController = TextEditingController();
     final messenger = ScaffoldMessenger.of(context);
     final service = ProfileService();
     bool isLoading = false;
+    bool obscurePassword = true;
 
     await showDialog(
       context: context,
@@ -570,7 +575,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ─── البريد الحالي ───
+                // البريد الحالي
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -598,7 +603,6 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 8),
                 const Center(
                   child: Icon(Icons.arrow_downward,
@@ -606,7 +610,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 ),
                 const SizedBox(height: 8),
 
-                // ─── البريد الجديد ───
+                // البريد الجديد
                 TextField(
                   controller: emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -618,10 +622,31 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                     hintText: 'newemail@example.com',
                   ),
                 ),
-
                 const SizedBox(height: 12),
 
-                // ─── تنبيه ───
+                // 🔐 كلمة مرور الأدمن
+                TextField(
+                  controller: passwordController,
+                  obscureText: obscurePassword,
+                  enabled: !isLoading,
+                  decoration: InputDecoration(
+                    labelText: 'كلمة مرور الأدمن',
+                    prefixIcon: const Icon(Icons.lock_outlined),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                      onPressed: () => setDialogState(
+                        () => obscurePassword = !obscurePassword,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // تنبيه
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
@@ -638,8 +663,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'كأدمن، يتم التغيير فوراً دون تأكيد البريد',
-                          style: TextStyle(fontSize: 12),
+                          'سيتم تغيير البريد فوراً في المصادقة والبروفايل',
+                          style: TextStyle(fontSize: 11),
                         ),
                       ),
                     ],
@@ -661,12 +686,23 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   ? null
                   : () async {
                       final newEmail = emailController.text.trim();
+                      final adminPassword = passwordController.text;
 
                       // ─── التحقق ───
                       if (newEmail.isEmpty || !newEmail.contains('@')) {
                         messenger.showSnackBar(
                           const SnackBar(
                             content: Text('أدخل بريداً صحيحاً'),
+                            backgroundColor: AppTheme.error,
+                          ),
+                        );
+                        return;
+                      }
+
+                      if (adminPassword.isEmpty) {
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('أدخل كلمة مرور الأدمن'),
                             backgroundColor: AppTheme.error,
                           ),
                         );
@@ -691,6 +727,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                         await service.adminChangeEmail(
                           userId: user.id,
                           newEmail: newEmail,
+                          adminPassword: adminPassword,
                         );
 
                         if (dialogContext.mounted) {

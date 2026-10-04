@@ -343,25 +343,80 @@ class ProfileService {
   }
 
   // ═══════════════════════════════════════════════
-  // 📧 تغيير البريد (للأدمن — فوري)
+  // 📧 تغيير البريد (للأدمن — يحتاج كلمة مرور الأدمن)
   // ═══════════════════════════════════════════════
   Future<void> adminChangeEmail({
     required String userId,
     required String newEmail,
+    required String adminPassword,
   }) async {
-    final response = await _supabase.functions.invoke(
-      'admin-change-email',
-      body: {
-        'user_id': userId,
-        'new_email': newEmail.trim(),
-      },
-    );
+    // 1) التحقق من هوية الأدمن
+    final currentAdmin = _supabase.auth.currentUser;
+    if (currentAdmin == null || currentAdmin.email == null) {
+      throw Exception('لم يتم العثور على حساب الأدمن');
+    }
 
-    if (response.status != 200) {
-      final error = response.data?['error'] ?? 'فشل تغيير البريد';
-      throw Exception(error);
+    try {
+      await _supabase.auth.signInWithPassword(
+        email: currentAdmin.email!,
+        password: adminPassword,
+      );
+      debugPrint('OK: admin password verified');
+    } on AuthException catch (e) {
+      if (e.message.toLowerCase().contains('invalid')) {
+        throw Exception('كلمة مرور الأدمن غير صحيحة');
+      }
+      rethrow;
+    }
+
+    final normalizedEmail = newEmail.trim().toLowerCase();
+
+    // 2) استدعاء Edge Function لتحديث auth.users.email
+    try {
+      final response = await _supabase.functions.invoke(
+        'admin-change-email',
+        body: {
+          'user_id': userId,
+          'new_email': normalizedEmail,
+        },
+      );
+
+      if (response.status != 200) {
+        final error = response.data?['error'] ?? 'فشل تغيير البريد';
+        throw Exception(error);
+      }
+      debugPrint('OK: auth.users.email updated via Edge Function');
+    } catch (e) {
+      debugPrint('FAIL: Edge Function error: $e');
+      rethrow;
+    }
+
+    // 3) تحديث profiles.email
+    try {
+      final result = await _supabase
+          .from('profiles')
+          .update({'email': normalizedEmail})
+          .eq('id', userId)
+          .select();
+
+      if ((result as List).isEmpty) {
+        throw Exception('فشل تحديث profiles.email');
+      }
+      debugPrint('OK: profiles.email updated');
+    } catch (e) {
+      debugPrint('FAIL: profiles update: $e');
+      // auth نجح، profiles فشل — نحاول مرة أخرى بالطريقة القديمة
+      try {
+        await _supabase
+            .from('profiles')
+            .update({'email': normalizedEmail})
+            .eq('id', userId);
+      } catch (_) {}
+      throw Exception('تم تحديث المصادقة لكن فشل البروفايل — أعد المحاولة');
     }
   }
+
+
 }
 
 // ═══════════════════════════════════════════════
