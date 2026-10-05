@@ -31,6 +31,43 @@ class T {
     'favorites': {'ar': 'المفضلة', 'en': 'Favorites'},
     'admin_panel': {'ar': 'لوحة الأدمن', 'en': 'Admin Panel'},
     'dark_mode': {'ar': 'الوضع الليلي', 'en': 'Dark Mode'},
+    'about': {'ar': 'حول التطبيق', 'en': 'About'},
+    'app_version': {'ar': 'إصدار التطبيق', 'en': 'App Version'},
+    'manage_updates': {'ar': 'إدارة التحديثات', 'en': 'Manage Updates'},
+    'manage_updates_desc': {
+      'ar': 'نشر تحديثات وإيقاف النسخ القديمة',
+      'en': 'Publish updates and deprecate old versions'
+    },
+    'new_update': {'ar': 'تحديث جديد', 'en': 'New Update'},
+    'edit_update': {'ar': 'تعديل التحديث', 'en': 'Edit Update'},
+    'changelog': {'ar': 'ميزات التحديث', 'en': 'Changelog'},
+    'changelog_hint': {
+      'ar': 'اكتب كل ميزة في سطر جديد',
+      'en': 'Write each feature on a new line'
+    },
+    'download_url': {'ar': 'رابط التحميل', 'en': 'Download URL'},
+    'is_mandatory': {'ar': 'تحديث إلزامي', 'en': 'Mandatory Update'},
+    'is_mandatory_hint': {
+      'ar': 'لن يستطيع المستخدم استخدام التطبيق قبل التحديث',
+      'en': 'User cannot use app without updating'
+    },
+    'is_active': {'ar': 'نشط', 'en': 'Active'},
+    'update_available': {'ar': 'يتوفر تحديث جديد', 'en': 'Update Available'},
+    'mandatory_update_title': {
+      'ar': 'تحديث إلزامي مطلوب',
+      'en': 'Mandatory Update Required'
+    },
+    'update_now': {'ar': 'تحديث الآن', 'en': 'Update Now'},
+    'later': {'ar': 'لاحقاً', 'en': 'Later'},
+    'you_are_up_to_date': {
+      'ar': 'أنت على أحدث إصدار',
+      'en': 'You are on the latest version'
+    },
+    'no_updates_yet': {'ar': 'لا توجد تحديثات', 'en': 'No updates yet'},
+    'no_updates_hint': {
+      'ar': 'أضف تحديثاً جديداً لنشره للمستخدمين',
+      'en': 'Add a new update to publish to users'
+    },
     'privacy_policy': {
       'ar': 'سياسة الخصوصية',
       'en': 'Privacy Policy'

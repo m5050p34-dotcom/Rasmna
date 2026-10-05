@@ -10,6 +10,7 @@ import 'manage_categories_screen.dart';
 import 'manage_featured_screen.dart';
 import 'manage_icons_screen.dart';
 import 'manage_sort_options_screen.dart';
+import 'manage_updates_screen.dart';
 import 'manage_users_screen.dart';
 import 'moderate_photos_screen.dart';
 import 'platform_earnings_screen.dart';
@@ -164,6 +165,52 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       },
                     ),
                     const SizedBox(height: 12),
+
+                    _actionCard(
+
+
+                      'إدارة التحديثات',
+
+
+                      'نشر تحديثات وإيقاف النسخ القديمة',
+
+
+                      Icons.system_update,
+
+
+                      AppTheme.primary,
+
+
+                      () {
+
+
+                        Navigator.push(
+
+
+                          context,
+
+
+                          MaterialPageRoute(
+
+
+                            builder: (_) => const ManageUpdatesScreen(),
+
+
+                          ),
+
+
+                        );
+
+
+                      },
+
+
+                    ),
+
+
+                    const SizedBox(height: 12),
+
+
 
                     _actionCard('إرسال إشعار للمستخدمين',
                         'إرسال إشعار جماعي أو لمستخدم محدد',

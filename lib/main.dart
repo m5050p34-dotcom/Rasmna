@@ -23,8 +23,10 @@ import 'screens/home/marketplace_screen.dart';
 import 'screens/onboarding/permissions_screen.dart';
 import 'services/ads_service.dart';
 import 'services/local_notifications_service.dart';
+import 'services/app_version_service.dart';
 import 'services/permissions_service.dart';
 import 'utils/app_theme.dart';
+import 'widgets/update_dialog.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -131,6 +133,22 @@ class _RasmnaAppState extends State<RasmnaApp> with WidgetsBindingObserver {
       _permissionsDone = true;
       _showPermissions = false;
     });
+    _checkForUpdates();
+  }
+
+  Future<void> _checkForUpdates() async {
+    try {
+      await Future.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
+
+      final version = await AppVersionService().checkForUpdate();
+      if (version == null) return;
+      if (!mounted) return;
+
+      await UpdateDialog.show(context, version);
+    } catch (e) {
+      debugPrint('Update check error: $e');
+    }
   }
 
   @override
