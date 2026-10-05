@@ -11,7 +11,9 @@ import '../../utils/app_theme.dart';
 import '../../utils/translations.dart';
 import '../../widgets/banner_carousel.dart';
 import '../../widgets/bottom_banner_ad.dart';
+import '../../services/update_checker_service.dart';
 import '../../widgets/main_drawer.dart';
+import '../../widgets/update_dialog.dart';
 import '../../widgets/photo_card.dart';
 import '../upload/upload_screen.dart';
 import 'photo_details_screen.dart';
@@ -29,7 +31,35 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadAll());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _loadAll();
+      await _checkForUpdate();
+    });
+  }
+
+  // ═══════════════════════════════════════════════
+  // ✅ فحص التحديثات عند كل فتح للسوق
+  // ═══════════════════════════════════════════════
+  Future<void> _checkForUpdate() async {
+    try {
+      await Future.delayed(const Duration(milliseconds: 800));
+      if (!mounted) return;
+
+      final checker = UpdateCheckerService();
+      final version = await checker.shouldShowUpdate();
+
+      if (version == null || !mounted) return;
+
+      // عرض الديالوج
+      await UpdateDialog.show(context, version);
+
+      // إذا اختياري → احفظ أنه رآه
+      if (!version.isMandatory) {
+        await checker.markAsSeen(version.versionCode);
+      }
+    } catch (e) {
+      debugPrint('Update check error: $e');
+    }
   }
 
   Future<void> _loadAll() async {
