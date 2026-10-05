@@ -11,6 +11,7 @@ import 'manage_featured_screen.dart';
 import 'manage_icons_screen.dart';
 import 'manage_sort_options_screen.dart';
 import 'manage_updates_screen.dart';
+import '../../services/update_checker_service.dart';
 import 'manage_users_screen.dart';
 import 'moderate_photos_screen.dart';
 import 'platform_earnings_screen.dart';
@@ -167,6 +168,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     const SizedBox(height: 12),
 
                     _actionCard(
+                      '🧪 اختبار فحص التحديثات',
+                      'اعرض معلومات المقارنة (للتشخيص)',
+                      Icons.bug_report,
+                      AppTheme.warning,
+                      () => _showUpdateDebug(),
+                    ),
+                    const SizedBox(height: 12),
+
+                    _actionCard(
 
 
                       'إدارة التحديثات',
@@ -298,6 +308,86 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ],
                 ),
               ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════
+  // 🧪 عرض تشخيص فحص التحديثات
+  // ═══════════════════════════════════════════════
+  Future<void> _showUpdateDebug() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final result = await UpdateCheckerService().debugInfo();
+
+      if (!mounted) return;
+      Navigator.pop(context); // أغلق التحميل
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('🧪 تشخيص التحديثات'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _debugRow('إصدار التطبيق الحالي', '${result.current}'),
+                _debugRow('أحدث إصدار في DB',
+                    '${result.latest ?? "غير موجود"}'),
+                _debugRow('سيظهر الديالوج؟',
+                    result.showDialog ? '✅ نعم' : '❌ لا'),
+                _debugRow('السبب', result.reason),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إغلاق'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطأ: $e'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _debugRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 130,
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 13),
+              textDirection: TextDirection.ltr,
+            ),
+          ),
+        ],
       ),
     );
   }
