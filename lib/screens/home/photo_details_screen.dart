@@ -884,35 +884,11 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        // ✅ الأزرار في Row: التحميل (أخضر) + المعاينة (أزرق)
-        Row(
-          children: [
-            Expanded(child: _downloadButton()),
-            const SizedBox(width: 10),
-            Expanded(
-              child: SizedBox(
-                height: 54,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  onPressed: _openFullscreen,
-                  icon: const Icon(Icons.fullscreen, size: 22),
-                  label: const Text(
-                    'معاينة كاملة',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
+        // ✅ زر التحميل فقط (بعرض كامل)
+        SizedBox(
+          width: double.infinity,
+          height: 54,
+          child: _downloadButton(),
         ),
       ],
     );
