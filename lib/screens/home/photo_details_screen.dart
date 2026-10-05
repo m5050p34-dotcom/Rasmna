@@ -137,6 +137,407 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
     );
   }
 
+  // ═══════════════════════════════════════════════
+  // 🛒 Bottom Sheet للشراء السريع
+  // ═══════════════════════════════════════════════
+  Future<void> _showPurchaseSheet() async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _buildPurchaseSheet(),
+    );
+  }
+
+  Widget _buildPurchaseSheet() {
+    final photo = _currentPhoto;
+    final isFree = photo.isFree;
+    final canDownload = _canDownload;
+    final isTrans =
+        photo.format == 'png' || photo.format == 'webp';
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ─── مقبض السحب ───
+              Center(
+                child: Container(
+                  width: 50,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // ─── معاينة الصورة ───
+              GestureDetector(
+                onTap: () {
+                  Navigator.pop(context);
+                  _openFullscreen();
+                },
+                child: Container(
+                  height: 200,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: CachedNetworkImage(
+                          imageUrl: photo.imageUrl,
+                          fit: isTrans ? BoxFit.contain : BoxFit.cover,
+                        ),
+                      ),
+                      // شارة "متعددة"
+                      if (photo.isPartOfGroup)
+                        Positioned(
+                          top: 10,
+                          right: 10,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.7),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.collections,
+                                    color: Colors.white, size: 12),
+                                SizedBox(width: 4),
+                                Text(
+                                  'متعددة',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      // زر فتح كامل الشاشة
+                      Positioned(
+                        bottom: 10,
+                        right: 10,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.5),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.fullscreen,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // ─── العنوان ───
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Text(
+                  photo.title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1A1A2E),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // ─── الناشر + التصنيف ───
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.pop(context);
+                        _openPhotographerProfile();
+                      },
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 4),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 18,
+                              backgroundColor: AppTheme.primary,
+                              backgroundImage:
+                                  (photo.owner?.avatarUrl != null &&
+                                          photo.owner!.avatarUrl!.isNotEmpty)
+                                      ? CachedNetworkImageProvider(
+                                          photo.owner!.avatarUrl!)
+                                      : null,
+                              child: (photo.owner?.avatarUrl == null ||
+                                      photo.owner!.avatarUrl!.isEmpty)
+                                  ? Text(
+                                      photo.owner?.initial ?? '?',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    photo.ownerName,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const Text(
+                                    'اضغط لعرض الملف الشخصي',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      AppConstants.photoCategories.firstWhere(
+                        (c) => c['key'] == photo.category,
+                        orElse: () => {
+                          'ar': photo.category,
+                          'en': photo.category,
+                        },
+                      )['ar']!,
+                      style: const TextStyle(
+                        color: AppTheme.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // ─── تاريخ النشر ───
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.calendar_today,
+                        color: AppTheme.primary, size: 16),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'تاريخ النشر',
+                        style: TextStyle(
+                            fontSize: 11, color: Colors.grey),
+                      ),
+                      Text(
+                        _formatDate(photo.createdAt),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  // السعر
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: isFree
+                            ? [AppTheme.success, AppTheme.success]
+                            : [AppTheme.primary, AppTheme.secondary],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isFree ? Icons.download_done : Icons.stars,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          isFree
+                              ? 'مجاني'
+                              : '${photo.price.toInt()} نقطة',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // ─── الأزرار ───
+              Row(
+                children: [
+                  // زر التحميل
+                  Expanded(
+                    child: SizedBox(
+                      height: 52,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.success,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        onPressed: canDownload
+                            ? () {
+                                Navigator.pop(context);
+                                _download();
+                              }
+                            : null,
+                        icon: Icon(
+                          canDownload ? Icons.download : Icons.lock,
+                          size: 20,
+                        ),
+                        label: const Text(
+                          'تحميل الصورة',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+
+                  // زر الشراء أو المعاينة
+                  Expanded(
+                    child: SizedBox(
+                      height: 52,
+                      child: _isOwner || isFree || _hasPurchased == true
+                          ? ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.primary,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _openFullscreen();
+                              },
+                              icon: const Icon(Icons.fullscreen,
+                                  size: 20),
+                              label: const Text(
+                                'معاينة كاملة',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            )
+                          : ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.primary,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              onPressed: _isPurchasing
+                                  ? null
+                                  : () {
+                                      Navigator.pop(context);
+                                      _purchase();
+                                    },
+                              icon: const Icon(
+                                  Icons.shopping_cart, size: 20),
+                              label: Text(
+                                'شراء بـ ${photo.price.toInt()} نقطة',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _openPhotographerProfile() {
     if (_isOwner) return;
     Navigator.push(
@@ -592,7 +993,8 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
             final isTrans =
                 img.format == 'png' || img.format == 'webp';
             return GestureDetector(
-              onTap: _openFullscreen,
+              onTap: _showPurchaseSheet,
+              onDoubleTap: _openFullscreen,
               child: Hero(
                 tag: 'photo_${img.id}',
                 child: InteractiveViewer(
@@ -637,7 +1039,8 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
   Widget _buildSingleImage(PhotoModel photo) {
     final isTrans = photo.format == 'png' || photo.format == 'webp';
     return GestureDetector(
-      onTap: _openFullscreen,
+      onTap: _showPurchaseSheet,
+      onDoubleTap: _openFullscreen,
       child: Hero(
         tag: 'photo_${photo.id}',
         child: InteractiveViewer(
