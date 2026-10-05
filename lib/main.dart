@@ -116,6 +116,10 @@ class _RasmnaAppState extends State<RasmnaApp> with WidgetsBindingObserver {
           _showPermissions = isFirst;
           _checking = false;
         });
+        // ✅ افحص التحديثات دائماً (ليس فقط أول تشغيل)
+        if (!isFirst) {
+          _checkForUpdates();
+        }
       }
     } catch (e) {
       debugPrint('❌ First launch check error: $e');
@@ -124,6 +128,8 @@ class _RasmnaAppState extends State<RasmnaApp> with WidgetsBindingObserver {
           _showPermissions = false;
           _checking = false;
         });
+        // ✅ افحص التحديثات حتى عند الخطأ
+        _checkForUpdates();
       }
     }
   }

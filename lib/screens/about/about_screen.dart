@@ -58,15 +58,30 @@ class _AboutScreenState extends State<AboutScreen> {
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
+            width: 110,
+            height: 110,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            child: const Icon(
-              Icons.image,
-              size: 56,
-              color: AppTheme.primary,
+            child: ClipOval(
+              child: Image.asset(
+                'assets/icon/icon.png',
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.image,
+                  size: 56,
+                  color: AppTheme.primary,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 16),
