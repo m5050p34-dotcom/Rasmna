@@ -555,9 +555,6 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
                   _buildTitleRow(current),
                   const SizedBox(height: 12),
                   _buildOwnerRow(photo),
-                  const SizedBox(height: 20),
-                  _buildPreviewButton(),
-                  const SizedBox(height: 20),
                   if (_isOwner)
                     _ownerSection()
                   else if (photo.isFree)
@@ -830,28 +827,6 @@ class _PhotoDetailsScreenState extends State<PhotoDetailsScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildPreviewButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
-      child: OutlinedButton.icon(
-        onPressed: _openFullscreen,
-        icon: const Icon(Icons.fullscreen, size: 24),
-        label: const Text(
-          'معاينة كاملة الشاشة',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppTheme.primary,
-          side: const BorderSide(color: AppTheme.primary, width: 2),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
     );
   }
 
