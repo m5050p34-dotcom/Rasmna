@@ -313,9 +313,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   // ═══════════════════════════════════════════════
-  // 🧪 عرض تشخيص فحص التحديثات
+  // 🧪 أداة تشخيص نظام التحديثات
   // ═══════════════════════════════════════════════
   Future<void> _showUpdateDebug() async {
+    // عرض مؤشر التحميل
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -323,30 +324,84 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
 
     try {
-      final result = await UpdateCheckerService().debugInfo();
+      final result = await UpdateCheckerService().check();
 
       if (!mounted) return;
-      Navigator.pop(context); // أغلق التحميل
+      Navigator.pop(context);
 
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('🧪 تشخيص التحديثات'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.bug_report, color: AppTheme.warning),
+              SizedBox(width: 10),
+              Text('تشخيص التحديثات', style: TextStyle(fontSize: 16)),
+            ],
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _debugRow('إصدار التطبيق الحالي', '${result.current}'),
-                _debugRow('أحدث إصدار في DB',
-                    '${result.latest ?? "غير موجود"}'),
-                _debugRow('سيظهر الديالوج؟',
-                    result.showDialog ? '✅ نعم' : '❌ لا'),
-                _debugRow('السبب', result.reason),
+                _debugRow(
+                  'إصدار التطبيق الحالي',
+                  '${result.currentCode}',
+                ),
+                _debugRow(
+                  'أحدث إصدار في DB',
+                  result.latestCode?.toString() ?? 'غير موجود',
+                ),
+                const Divider(height: 24),
+                _debugRow(
+                  'سيظهر الديالوج؟',
+                  result.shouldShow ? '✅ نعم' : '❌ لا',
+                  valueColor: result.shouldShow
+                      ? AppTheme.success
+                      : AppTheme.error,
+                ),
+                _debugRow(
+                  'السبب',
+                  result.reason.arabicLabel,
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _reasonHint(result.reason),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
           actions: [
+            TextButton.icon(
+              onPressed: () async {
+                await UpdateCheckerService().resetSeenVersions();
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('تم مسح سجل الإصدارات المرئية'),
+                      backgroundColor: AppTheme.success,
+                    ),
+                  );
+                }
+              },
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('إعادة تعيين'),
+            ),
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('إغلاق'),
@@ -367,23 +422,47 @@ class _AdminDashboardState extends State<AdminDashboard> {
     }
   }
 
-  Widget _debugRow(String label, String value) {
+  String _reasonHint(UpdateCheckReason reason) {
+    switch (reason) {
+      case UpdateCheckReason.noActiveVersions:
+        return 'لا يوجد تحديث نشط في قاعدة البيانات. أنشئ تحديثاً من "إدارة التحديثات".';
+      case UpdateCheckReason.upToDate:
+        return 'التطبيق محدّث بالفعل. لن يظهر الديالوج حتى تنشر إصداراً أعلى.';
+      case UpdateCheckReason.mandatory:
+        return 'تحديث إلزامي متوفر — سيظهر الديالوج في كل مرة حتى يتم التحديث.';
+      case UpdateCheckReason.optionalNew:
+        return 'تحديث اختياري جديد — سيظهر مرة واحدة لكل إصدار.';
+      case UpdateCheckReason.alreadySeen:
+        return 'المستخدم رأى الديالوج سابقاً — لن يظهر مجدداً إلا إذا رفعت الإصدار.';
+      case UpdateCheckReason.error:
+        return 'حدث خطأ أثناء الفحص. تحقق من اتصال الإنترنت وإعدادات Supabase.';
+    }
+  }
+
+  Widget _debugRow(String label, String value, {Color? valueColor}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 130,
+            width: 140,
             child: Text(
               '$label:',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontSize: 13),
+              style: TextStyle(
+                fontSize: 13,
+                color: valueColor,
+                fontWeight: valueColor != null ? FontWeight.bold : null,
+              ),
               textDirection: TextDirection.ltr,
             ),
           ),
