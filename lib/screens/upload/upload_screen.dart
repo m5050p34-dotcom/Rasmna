@@ -440,12 +440,44 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   // ═══════════════════════════════════════════════
-  // ✅ صور متعددة — قائمة قابلة للسحب
+  // ✅ صور متعددة — معاينة الغلاف + قائمة قابلة للسحب
   // ═══════════════════════════════════════════════
   Widget _buildMultiImageList() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // ─── معاينة الغلاف في الأعلى ───
+        _buildCoverPreview(),
+        const SizedBox(height: 16),
+
+        // ─── فاصل وعنوان ───
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            children: [
+              const Icon(Icons.list, size: 16, color: AppTheme.primary),
+              const SizedBox(width: 6),
+              Text(
+                'جميع الصور (${_images.length})',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'اسحب ≡ لترتيب',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Theme.of(context).disabledColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // ─── قائمة الصور القابلة للسحب ───
         ReorderableListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -457,6 +489,169 @@ class _UploadScreenState extends State<UploadScreen> {
         ),
         const SizedBox(height: 10),
         if (_images.length < _maxImages) _buildAddMoreButton(),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════
+  // ✅ معاينة صورة الغلاف
+  // ═══════════════════════════════════════════════
+  Widget _buildCoverPreview() {
+    final img = _images.first;
+    final isTrans = _isTransparent(img.format);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // العنوان
+        const Padding(
+          padding: EdgeInsets.only(bottom: 8),
+          child: Row(
+            children: [
+              Icon(Icons.star, size: 18, color: AppTheme.primary),
+              SizedBox(width: 6),
+              Text(
+                'صورة الغلاف',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: AppTheme.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        // المعاينة
+        GestureDetector(
+          onTap: _showPickOptions,
+          child: Container(
+            height: 220,
+            decoration: BoxDecoration(
+              color: isTrans
+                  ? null
+                  : Theme.of(context).colorScheme.surfaceContainerHighest,
+              gradient: isTrans
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.grey.shade200,
+                        Colors.grey.shade50,
+                        Colors.grey.shade200,
+                        Colors.grey.shade50,
+                      ],
+                      stops: const [0.0, 0.25, 0.5, 0.75],
+                    )
+                  : null,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppTheme.primary,
+                width: 2.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.primary.withValues(alpha: 0.2),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Image.file(
+                      img.file,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+                // زر الحذف
+                Positioned(
+                  top: 10,
+                  left: 10,
+                  child: GestureDetector(
+                    onTap: () => _removeImage(0),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.delete,
+                          color: Colors.white, size: 20),
+                    ),
+                  ),
+                ),
+                // شارة شفاف
+                if (isTrans)
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppTheme.success,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.auto_awesome,
+                              color: Colors.white, size: 11),
+                          SizedBox(width: 3),
+                          Text(
+                            'PNG شفاف',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                // شارة الغلاف
+                Positioned(
+                  bottom: 10,
+                  right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.star, color: Colors.white, size: 13),
+                        SizedBox(width: 4),
+                        Text(
+                          'الغلاف',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
