@@ -76,13 +76,9 @@ class _UploadScreenState extends State<UploadScreen> {
           imageQuality: 90,
         );
         if (picked == null) return;
-        debugPrint('Camera picked: \${picked.path}');
         _addImage(picked);
       } else {
-        debugPrint('Opening multi-image picker...');
         final picked = await picker.pickMultiImage(imageQuality: 90);
-        debugPrint('Picker returned \${picked.length} images');
-
         if (picked.isEmpty) return;
 
         final toAdd = picked.take(remaining).toList();
@@ -98,15 +94,14 @@ class _UploadScreenState extends State<UploadScreen> {
         }
       }
     } catch (e) {
-      debugPrint('Picker error: \$e');
-      _snack('خطأ في الاختيار: \$e', AppTheme.error);
+      _snack('خطأ في الاختيار: $e', AppTheme.error);
     }
   }
 
   void _addImage(XFile picked) {
     final ext = p.extension(picked.path).replaceAll('.', '').toLowerCase();
     final uniqueId =
-        '\${DateTime.now().microsecondsSinceEpoch}_\${_images.length}_\${picked.path.hashCode}';
+        '${DateTime.now().microsecondsSinceEpoch}_${_images.length}_${picked.path.hashCode}';
 
     setState(() {
       _images.add(_SelectedImage(
@@ -127,6 +122,18 @@ class _UploadScreenState extends State<UploadScreen> {
       final item = _images.removeAt(oldIndex);
       _images.insert(newIndex, item);
     });
+  }
+
+  // ═══════════════════════════════════════════════
+  // ✅ تعيين صورة كغلاف (تنقل للمركز الأول)
+  // ═══════════════════════════════════════════════
+  void _setAsCover(int index) {
+    if (index == 0) return;
+    setState(() {
+      final item = _images.removeAt(index);
+      _images.insert(0, item);
+    });
+    _snack('✅ تم تعيين الصورة كغلاف', AppTheme.success);
   }
 
   bool _isTransparent(String format) =>
@@ -167,8 +174,8 @@ class _UploadScreenState extends State<UploadScreen> {
         SnackBar(
           content: Text(
             _images.length > 1
-                ? 'تم نشر \${_images.length} صور بنجاح'
-                : 'تم رفع الصور بنجاح',
+                ? 'تم نشر ${_images.length} صور بنجاح'
+                : 'تم رفع الصورة بنجاح',
           ),
           backgroundColor: AppTheme.success,
         ),
@@ -212,12 +219,16 @@ class _UploadScreenState extends State<UploadScreen> {
                     color: AppTheme.primary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text(
-                    '\${_images.length} / \$_maxImages',
-                    style: const TextStyle(
-                      color: AppTheme.primary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
+                  // ✅ عداد LTR لمنع انعكاس الأرقام
+                  child: Directionality(
+                    textDirection: TextDirection.ltr,
+                    child: Text(
+                      '${_images.length} / $_maxImages',
+                      style: const TextStyle(
+                        color: AppTheme.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 ),
@@ -272,9 +283,11 @@ class _UploadScreenState extends State<UploadScreen> {
             const Spacer(),
             if (_images.isNotEmpty)
               Text(
-                'اسحب للترتيب',
+                _images.length > 1
+                    ? 'انقر على صورة لتعيينها كغلاف'
+                    : 'اضغط + لإضافة المزيد',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 10,
                   color: Theme.of(context).disabledColor,
                 ),
               ),
@@ -283,19 +296,167 @@ class _UploadScreenState extends State<UploadScreen> {
         const SizedBox(height: 10),
         if (_images.isEmpty)
           _buildEmptyPicker()
-        else ...[
-          ReorderableListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            buildDefaultDragHandles: false,
-            itemCount: _images.length,
-            // ignore: deprecated_member_use
-            onReorder: _reorder,
-            itemBuilder: (context, index) => _buildImageTile(index),
+        else if (_images.length == 1)
+          // ✅ صورة واحدة → عرض كبير
+          _buildSingleLargePreview()
+        else
+          // ✅ صور متعددة → قائمة قابلة للسحب
+          _buildMultiImageList(),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════
+  // ✅ صورة واحدة — عرض كبير
+  // ═══════════════════════════════════════════════
+  Widget _buildSingleLargePreview() {
+    final img = _images.first;
+    final isTrans = _isTransparent(img.format);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        GestureDetector(
+          onTap: _showPickOptions,
+          child: Container(
+            height: 260,
+            decoration: BoxDecoration(
+              color: isTrans
+                  ? null
+                  : Theme.of(context).colorScheme.surfaceContainerHighest,
+              gradient: isTrans
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.grey.shade200,
+                        Colors.grey.shade50,
+                        Colors.grey.shade200,
+                        Colors.grey.shade50,
+                      ],
+                      stops: const [0.0, 0.25, 0.5, 0.75],
+                    )
+                  : null,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppTheme.primary.withValues(alpha: 0.3),
+                width: 2,
+              ),
+            ),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Image.file(
+                      img.file,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+                // زر الحذف
+                Positioned(
+                  top: 10,
+                  left: 10,
+                  child: GestureDetector(
+                    onTap: () => _removeImage(0),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.delete,
+                          color: Colors.white, size: 20),
+                    ),
+                  ),
+                ),
+                // شارة شفاف
+                if (isTrans)
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppTheme.success,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.auto_awesome,
+                              color: Colors.white, size: 11),
+                          SizedBox(width: 3),
+                          Text(
+                            'PNG شفاف',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                // شارة "الغلاف"
+                Positioned(
+                  bottom: 10,
+                  right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.star, color: Colors.white, size: 12),
+                        SizedBox(width: 4),
+                        Text(
+                          'الغلاف',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 10),
-          if (_images.length < _maxImages) _buildAddMoreButton(),
-        ],
+        ),
+        const SizedBox(height: 10),
+        _buildAddMoreButton(),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════
+  // ✅ صور متعددة — قائمة قابلة للسحب
+  // ═══════════════════════════════════════════════
+  Widget _buildMultiImageList() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ReorderableListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          buildDefaultDragHandles: false,
+          itemCount: _images.length,
+          // ignore: deprecated_member_use
+          onReorder: _reorder,
+          itemBuilder: (context, index) => _buildImageTile(index),
+        ),
+        const SizedBox(height: 10),
+        if (_images.length < _maxImages) _buildAddMoreButton(),
       ],
     );
   }
@@ -344,7 +505,14 @@ class _UploadScreenState extends State<UploadScreen> {
     return OutlinedButton.icon(
       onPressed: _showPickOptions,
       icon: const Icon(Icons.add_photo_alternate_outlined),
-      label: Text('إضافة صور أخرى (\${_images.length}/\$_maxImages)'),
+      label: Directionality(
+        // ✅ LTR لمنع انعكاس الأرقام
+        textDirection: TextDirection.ltr,
+        child: Text(
+          'إضافة صور أخرى (${_images.length}/$_maxImages)',
+          style: const TextStyle(fontSize: 14),
+        ),
+      ),
       style: OutlinedButton.styleFrom(
         foregroundColor: AppTheme.primary,
         side: const BorderSide(color: AppTheme.primary, width: 1.5),
@@ -361,120 +529,154 @@ class _UploadScreenState extends State<UploadScreen> {
     final isCover = index == 0;
     final isTrans = _isTransparent(img.format);
 
-    return Container(
+    return GestureDetector(
       key: ValueKey(img.id),
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isCover
-              ? AppTheme.primary
-              : AppTheme.primary.withValues(alpha: 0.15),
-          width: isCover ? 2 : 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          ReorderableDragStartListener(
-            index: index,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              child: Icon(
-                Icons.drag_indicator,
-                color: Theme.of(context).disabledColor,
-              ),
-            ),
+      onTap: () => _setAsCover(index),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isCover
+                ? AppTheme.primary
+                : AppTheme.primary.withValues(alpha: 0.15),
+            width: isCover ? 2 : 1,
           ),
-          Stack(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  width: 70,
-                  height: 70,
-                  color: isTrans ? Colors.grey.shade200 : Colors.transparent,
-                  child: Image.file(img.file, fit: BoxFit.cover),
+        ),
+        child: Row(
+          children: [
+            // مقبض السحب
+            ReorderableDragStartListener(
+              index: index,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                child: Icon(
+                  Icons.drag_indicator,
+                  color: Theme.of(context).disabledColor,
                 ),
               ),
-              if (isCover)
-                Positioned(
-                  top: 4,
-                  right: 4,
+            ),
+
+            // الصورة
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text(
-                      'الغلاف',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
+                    width: 70,
+                    height: 70,
+                    color: isTrans ? Colors.grey.shade200 : Colors.transparent,
+                    child: Image.file(img.file, fit: BoxFit.cover),
+                  ),
+                ),
+                if (isCover)
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'الغلاف',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      '#\${index + 1}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    if (isTrans) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: AppTheme.success.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'PNG',
-                          style: TextStyle(
-                            fontSize: 9,
-                            color: AppTheme.success,
+              ],
+            ),
+
+            const SizedBox(width: 12),
+
+            // المعلومات
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      // ✅ رقم LTR
+                      Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: Text(
+                          '#${index + 1}',
+                          style: const TextStyle(
                             fontWeight: FontWeight.bold,
+                            fontSize: 14,
                           ),
                         ),
                       ),
+                      if (isTrans) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: AppTheme.success.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'PNG',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: AppTheme.success,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (!isCover) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppTheme.warning.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'انقر للغلاف',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: AppTheme.warning,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  p.basename(img.file.path),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Theme.of(context).disabledColor,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    p.basename(img.file.path),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).disabledColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
-          ),
-          IconButton(
-            onPressed: () => _removeImage(index),
-            icon: const Icon(Icons.delete_outline,
-                color: AppTheme.error, size: 20),
-            tooltip: 'حذف',
-          ),
-        ],
+
+            // زر الحذف
+            IconButton(
+              onPressed: () => _removeImage(index),
+              icon: const Icon(Icons.delete_outline,
+                  color: AppTheme.error, size: 20),
+              tooltip: 'حذف',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -617,7 +819,7 @@ class _UploadScreenState extends State<UploadScreen> {
         labelText: T.get(context, 'price_points'),
         prefixIcon: const Icon(Icons.attach_money),
         helperText: _images.length > 1
-            ? 'السعر لكل الصور (\${_images.length} صور)'
+            ? 'السعر لكل الصور (${_images.length} صور)'
             : null,
       ),
       validator: (v) {
@@ -654,7 +856,7 @@ class _UploadScreenState extends State<UploadScreen> {
               provider.isLoading
                   ? T.get(context, 'uploading')
                   : _images.length > 1
-                      ? 'نشر \${_images.length} صور'
+                      ? 'نشر ${_images.length} صور'
                       : T.get(context, 'publish_photo'),
               style: const TextStyle(fontSize: 16),
             ),
