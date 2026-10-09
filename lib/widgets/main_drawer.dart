@@ -8,6 +8,7 @@ import '../providers/notifications_provider.dart';
 import '../providers/theme_provider.dart';
 import '../screens/admin/admin_dashboard.dart';
 import '../screens/about/about_screen.dart';
+import '../screens/settings/notification_settings_screen.dart';
 import '../screens/profile/favorites_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/profile/transactions_screen.dart';
@@ -98,6 +99,21 @@ class MainDrawer extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (_) => const PrivacyPolicyScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _menuItem(
+                    context: context,
+                    icon: Icons.notifications_active_outlined,
+                    iconColor: AppTheme.primary,
+                    title: 'إعدادات الإشعارات',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationSettingsScreen(),
                         ),
                       );
                     },

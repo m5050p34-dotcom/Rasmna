@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'notification_sound_service.dart';
 
 class LocalNotificationsService {
   static final FlutterLocalNotificationsPlugin _plugin =
@@ -97,25 +98,38 @@ class LocalNotificationsService {
 
     debugPrint('📢 Showing notification ID: $notificationId');
 
-    final androidDetails = AndroidNotificationDetails(
-      _channelId,
-      _channelName,
-      channelDescription: _channelDesc,
-      importance: Importance.max,
-      priority: Priority.high, // ✅ مدعوم هنا فقط
-      icon: '@mipmap/ic_launcher',
-      playSound: true,
-      enableVibration: true,
-      enableLights: true,
-      color: const Color(0xFF6C63FF),
-      colorized: true,
-      styleInformation: const BigTextStyleInformation(''),
-      visibility: NotificationVisibility.public,
-      autoCancel: true,
-      ongoing: false,
-      category: AndroidNotificationCategory.message,
-      ticker: title,
-    );
+      // ✅ قراءة الصوت المختار
+      final sound = NotificationSoundService.current;
+      final playSound = sound.playSound;
+      final rawSound = sound.rawSound;
+
+      // قناة منفصلة لكل نوع صوت (Android يتطلب ذلك)
+      final channelId = playSound
+          ? '${_channelId}_${sound.key}'
+          : _channelId;
+
+      final androidDetails = AndroidNotificationDetails(
+        channelId,
+        _channelName,
+        channelDescription: _channelDesc,
+        importance: playSound ? Importance.max : Importance.low,
+        priority: playSound ? Priority.high : Priority.low,
+        icon: '@mipmap/ic_launcher',
+        playSound: playSound,
+        sound: rawSound != null
+            ? RawResourceAndroidNotificationSound(rawSound)
+            : null,
+        enableVibration: playSound,
+        enableLights: true,
+        color: const Color(0xFF6C63FF),
+        colorized: true,
+        styleInformation: const BigTextStyleInformation(''),
+        visibility: NotificationVisibility.public,
+        autoCancel: true,
+        ongoing: false,
+        category: AndroidNotificationCategory.message,
+        ticker: title,
+      );
 
     const iosDetails = DarwinNotificationDetails(
       presentAlert: true,
