@@ -2,9 +2,6 @@ import java.util.Properties
 import java.io.FileInputStream
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
-// ═══════════════════════════════════════════════
-// قراءة key.properties
-// ═══════════════════════════════════════════════
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
@@ -29,17 +26,14 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.rasmna.mobile"
+        applicationId = "com.rasmna.app"
         minSdk = 23
-        targetSdk = 34
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
     }
 
-    // ═══════════════════════════════════════════════
-    // ✅ signingConfigs الحقيقي (يقفز إلى release عند وجود key.properties)
-    // ═══════════════════════════════════════════════
     signingConfigs {
         create("release") {
             if (keystorePropertiesFile.exists()) {
@@ -53,15 +47,17 @@ android {
 
     buildTypes {
         release {
-            // ✅ إذا كان key.properties موجوداً → استخدم release
-            // ⚠️ وإلا → fallback إلى debug (فقط للتطوير المحلي)
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")
             } else {
                 signingConfigs.getByName("debug")
             }
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 
