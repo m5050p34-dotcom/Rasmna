@@ -26,7 +26,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.rasmna.app"
+        // ✅ المعرّف القديم الذي أدخلته في Google Play
+        applicationId = "com.rasmna.mobile"
         minSdk = 23
         targetSdk = 36
         versionCode = flutter.versionCode
@@ -52,6 +53,7 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            // ✅ تفعيل R8 لتقليل الحجم وحل تحذير Play Console
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
