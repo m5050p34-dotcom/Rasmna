@@ -31,30 +31,64 @@ jobs:
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "cmake;3.22.1" || true
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;28.2.13676358" || true
 
+      # ✅ فك تشفير الـ Keystore
       - name: Decode Keystore
         run: |
           mkdir -p android/app
           printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | tr -d '\n\r ' | base64 --decode > android/app/rasmna-upload.jks
           SIZE=$(stat -c%s android/app/rasmna-upload.jks)
-          if [ "$SIZE" -lt 1000 ]; then exit 1; fi
+          if [ "$SIZE" -lt 1000 ]; then
+            echo "❌ Keystore too small ($SIZE bytes)"
+            exit 1
+          fi
           echo "✅ Keystore ready ($SIZE bytes)"
 
+      # ✅ استخراج الـ Alias تلقائياً من الـ Keystore (يتجاوز مشكلة KEY_ALIAS)
+      - name: Auto-detect Keystore Alias
+        id: keystore_info
+        run: |
+          KEYSTORE="android/app/rasmna-upload.jks"
+          KEYSTORE_PASS="${{ secrets.KEYSTORE_PASSWORD }}"
+
+          echo "═══════════════════════════════════════"
+          echo "🔍 Keystore contents:"
+          keytool -list -v -keystore "$KEYSTORE" -storepass "$KEYSTORE_PASS" 2>&1 | head -40 || true
+          echo "═══════════════════════════════════════"
+
+          # استخراج أول PrivateKeyEntry
+          ALIAS=$(keytool -list -keystore "$KEYSTORE" -storepass "$KEYSTORE_PASS" 2>/dev/null \
+            | grep -i "PrivateKeyEntry" \
+            | head -1 \
+            | cut -d',' -f1 \
+            | xargs)
+
+          if [ -z "$ALIAS" ]; then
+            echo "⚠️ Auto-detection failed, falling back to KEY_ALIAS secret"
+            ALIAS="${{ secrets.KEY_ALIAS }}"
+          fi
+
+          echo "✅ Detected alias: '$ALIAS'"
+          echo "alias=$ALIAS" >> $GITHUB_OUTPUT
+
+      # ✅ إنشاء key.properties باستخدام الـ Alias المستخرج
       - name: Create key.properties
         run: |
+          ALIAS="${{ steps.keystore_info.outputs.alias }}"
           cat > android/key.properties << EOF
           storePassword=${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword=${{ secrets.KEY_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
+          keyAlias=$ALIAS
           storeFile=rasmna-upload.jks
           EOF
+          echo "✅ key.properties created"
 
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Build APK (للتثبيت المباشر)
+      - name: Build APK
         run: flutter build apk --release
 
-      - name: Build AAB (لمتجر Google Play)
+      - name: Build AAB
         run: flutter build appbundle --release
 
       - name: Verify outputs
